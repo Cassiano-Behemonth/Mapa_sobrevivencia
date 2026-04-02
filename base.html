@@ -1,0 +1,2737 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SISTEMA DE MONITORAMENTO - UNIDADE BUNKER</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background: #0a0c0d;
+            color: #22c55e;
+            overflow-x: hidden;
+            background-image:
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #22c55e;
+            margin-bottom: 30px;
+            background: rgba(34, 197, 94, 0.05);
+            position: relative;
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.1);
+        }
+
+        h1 {
+            font-size: 2.8em;
+            color: #22c55e;
+            text-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+            letter-spacing: 4px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        /* Toggle Status Energia */
+        .day-night-switch {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 20, 0, 0.8);
+            padding: 6px 12px;
+            border-radius: 2px;
+            border: 1px solid #22c55e;
+            font-size: 0.75em;
+            color: #22c55e;
+            z-index: 100;
+        }
+
+        .day-night-switch label {
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+
+        .day-night-switch input[type="checkbox"] {
+            position: relative;
+            width: 40px;
+            height: 20px;
+            appearance: none;
+            background: #3d3426;
+            outline: none;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: 0.3s;
+            border: 1px solid #4d4436;
+        }
+
+        .day-night-switch input:checked {
+            background: #6d5a4a;
+        }
+
+        .day-night-switch input:before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            top: 1px;
+            left: 2px;
+            background: #8b7d6b;
+            transition: 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .day-night-switch input:checked:before {
+            left: 20px;
+            background: #d4c5a9;
+        }
+
+        .subtitle {
+            font-style: italic;
+            color: #22c55e;
+            margin-top: 10px;
+            opacity: 0.8;
+            font-size: 0.9em;
+        }
+
+        .map-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+            margin-top: 30px;
+            transition: all 0.3s ease;
+        }
+
+        .main-map {
+            position: relative;
+            background: #121415;
+            border: 2px solid #22c55e;
+            border-radius: 4px;
+            padding: 10px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(34, 197, 94, 0.1);
+        }
+
+        .map-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .back-button {
+            padding: 10px 20px;
+            background: #1a1d1e;
+            color: #f59e0b;
+            border: 1px solid #f59e0b;
+            border-radius: 2px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            font-weight: bold;
+            display: none;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+        }
+
+        .back-button.visible {
+            display: block;
+        }
+
+        .back-button:hover {
+            background: #f59e0b;
+            color: #000;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+        }
+
+        /* Breadcrumb navigation */
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(0, 20, 0, 0.4);
+            border-radius: 2px;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            font-size: 0.85em;
+            color: #22c55e;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .breadcrumb-current {
+            color: #f59e0b;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        /* Floor Selector System */
+        .floor-selector {
+            position: absolute;
+            top: 60px;
+            right: 15px;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 50;
+        }
+
+        .floor-selector.visible {
+            display: flex;
+        }
+
+        .floor-button {
+            width: 50px;
+            height: 50px;
+            background: rgba(0, 20, 0, 0.9);
+            border: 2px solid #22c55e;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
+            position: relative;
+        }
+
+        .floor-button:hover {
+            background: #22c55e;
+            transform: scale(1.05);
+        }
+
+        .floor-button.active {
+            background: #22c55e;
+            border-color: #f59e0b;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+        }
+
+        .floor-label {
+            font-family: 'Courier New', monospace;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #22c55e;
+        }
+
+        .floor-button.active .floor-label {
+            color: #000;
+        }
+
+        .floor-icon {
+            display: none;
+        }
+
+        .floor-name {
+            display: none;
+        }
+
+        /* Floor indicator badge */
+
+        .current-map-title {
+            flex: 1;
+            color: #22c55e;
+            font-size: 1.4em;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .control-btn {
+            padding: 8px 16px;
+            background: #1a1d1e;
+            color: #22c55e;
+            border: 1px solid #22c55e;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+
+        .control-btn:hover {
+            background: rgba(34, 197, 94, 0.2);
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+        }
+
+        .control-btn.active {
+            background: #22c55e;
+            color: #000;
+        }
+
+        .map-image-container {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border: 1px solid #22c55e;
+            border-radius: 2px;
+            overflow: auto;
+            max-height: 80vh;
+            cursor: crosshair;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            isolation: isolate;
+        }
+
+        /* Wrapper que garante que os overlays cubram a imagem inteira Mesmo com Scroll/Zoom */
+        .map-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .map-image {
+            max-width: none;
+            height: auto;
+            display: block;
+            image-rendering: pixelated;
+            filter: brightness(0.9) contrast(1.1);
+        }
+
+        /* Blackout visual: O brilho é reduzido levemente, mas a escuridão real vem do Canvas */
+        .night-mode .map-image {
+            filter: brightness(0.4) contrast(1.2); 
+        }
+
+        #flashlightCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 40; /* Acima da img mas abaixo da câmera (45+) */
+        }
+
+        /* CCTV CAMERA OVERLAY */
+        .camera-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+
+        /* Estática/Noise baseada em SVG */
+        .noise-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.15;
+            z-index: 45;
+            pointer-events: none;
+            filter: url(#noiseFilter);
+        }
+
+        /* Linhas de Varredura Dinâmicas */
+        .cctv-scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%,
+                    rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            z-index: 46;
+            pointer-events: none;
+            animation: scanlineScroll 10s linear infinite;
+        }
+
+        @keyframes scanlineScroll {
+            from {
+                background-position: 0 0;
+            }
+
+            to {
+                background-position: 0 100%;
+            }
+        }
+
+        /* Elementos de Interface da Câmera */
+        .cctv-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            text-shadow: 0 0 5px #ff0000;
+        }
+
+        .rec-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #ff0000;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .rec-dot {
+            width: 12px;
+            height: 12px;
+            background: #ff0000;
+            border-radius: 50%;
+            animation: blink 1s infinite step-end;
+            box-shadow: 0 0 8px #ff0000;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        .cam-id {
+            color: #22c55e;
+            font-size: 1em;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 2px 8px;
+        }
+
+        .cctv-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            color: #22c55e;
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px;
+        }
+
+        .cctv-timestamp {
+            font-size: 1.1em;
+        }
+
+        /* Brackets removed */
+
+        /* Hotspots de Localização */
+        .hotspot {
+            position: absolute;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: pulse 2s infinite;
+            z-index: 10;
+        }
+
+        .hotspot:hover {
+            transform: scale(1.2);
+            filter: brightness(1.5);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.7;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .hotspot-marker {
+            width: 24px;
+            height: 24px;
+            background: rgba(34, 197, 94, 0.4);
+            border: 2px solid #22c55e;
+            border-radius: 2px;
+            box-shadow: 0 0 10px #22c55e;
+            position: relative;
+        }
+
+        .hotspot-marker::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            background: #22c55e;
+            border-radius: 50%;
+        }
+
+        /* Hotspot Secreto - Pequeno e Discreto */
+        .hotspot-marker.secret {
+            width: 12px;
+            height: 12px;
+            background: radial-gradient(circle, rgba(80, 80, 90, 0.4), rgba(50, 50, 60, 0.3));
+            border: 1px solid rgba(100, 100, 110, 0.5);
+            box-shadow: 0 0 8px rgba(80, 80, 90, 0.3);
+            opacity: 0.6;
+            transition: all 0.3s ease;
+        }
+
+        .hotspot-marker.secret:hover {
+            width: 20px;
+            height: 20px;
+            opacity: 1;
+            background: radial-gradient(circle, rgba(150, 140, 120, 0.7), rgba(100, 90, 80, 0.5));
+            border: 2px solid rgba(200, 180, 150, 0.8);
+            box-shadow: 0 0 15px rgba(150, 140, 120, 0.6);
+        }
+
+        /* Hotspot Semi-Escondido - Meio-termo entre normal e secreto */
+        .hotspot-marker.hidden {
+            width: 20px;
+            height: 20px;
+            background: radial-gradient(circle, rgba(180, 160, 120, 0.5), rgba(140, 120, 90, 0.4));
+            border: 1px solid rgba(160, 140, 100, 0.6);
+            box-shadow: 0 0 12px rgba(180, 160, 120, 0.4);
+            opacity: 0.7;
+            transition: all 0.3s ease;
+        }
+
+        .hotspot-marker.hidden:hover {
+            width: 28px;
+            height: 28px;
+            opacity: 1;
+            background: radial-gradient(circle, rgba(220, 190, 140, 0.8), rgba(180, 150, 110, 0.6));
+            border: 2px solid rgba(220, 190, 140, 0.9);
+            box-shadow: 0 0 18px rgba(220, 190, 140, 0.7);
+        }
+
+        /* Marcadores de Personagens */
+        .character-marker {
+            position: absolute;
+            cursor: move;
+            transition: all 0.2s ease;
+            z-index: 20;
+            user-select: none;
+        }
+
+        .character-marker:hover {
+            transform: scale(1.15);
+            z-index: 30;
+        }
+
+        .character-marker.selected {
+            z-index: 25;
+        }
+
+        .character-marker.selected .character-icon {
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 4px 12px rgba(0, 0, 0, 0.6);
+            border-width: 4px;
+        }
+
+        .character-marker.dragging {
+            opacity: 0.7;
+            cursor: grabbing;
+        }
+
+        .character-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 3px solid;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .character-label {
+            position: absolute;
+            top: 45px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            white-space: nowrap;
+            pointer-events: none;
+            border: 1px solid;
+        }
+
+        .character-remove {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 20px;
+            height: 20px;
+            background: #c41e3a;
+            color: white;
+            border: 2px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7em;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .character-marker:hover .character-remove {
+            opacity: 1;
+        }
+
+        /* Tipos de personagens */
+        .character-player .character-icon {
+            background: rgba(30, 144, 255, 0.8);
+            border-color: #1e90ff;
+        }
+
+        .character-player .character-label {
+            border-color: #1e90ff;
+        }
+
+        .character-npc .character-icon {
+            background: rgba(50, 205, 50, 0.8);
+            border-color: #32cd32;
+        }
+
+        .character-npc .character-label {
+            border-color: #32cd32;
+        }
+
+        .character-enemy .character-icon {
+            background: rgba(220, 20, 60, 0.8);
+            border-color: #dc143c;
+        }
+
+        .character-enemy .character-label {
+            border-color: #dc143c;
+        }
+
+        .character-mystery .character-icon {
+            background: rgba(148, 0, 211, 0.8);
+            border-color: #9400d3;
+        }
+
+        .character-mystery .character-label {
+            border-color: #9400d3;
+        }
+
+        .location-info {
+            background: #2a2520;
+            border: 3px solid #3d3426;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            height: fit-content;
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+            display: none;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .location-info.visible {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .panel-close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #c41e3a;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            z-index: 10;
+            line-height: 1;
+        }
+
+        .panel-close-btn:hover {
+            background: #d41e3a;
+            transform: scale(1.15);
+            box-shadow: 0 4px 12px rgba(196, 30, 58, 0.5);
+        }
+
+        .location-info h2 {
+            color: #d4c5a9;
+            border-bottom: 2px solid #3d3426;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            font-size: 1.8em;
+        }
+
+        .character-form {
+            background: #1a1612;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #3d3426;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #b8a989;
+            font-size: 0.9em;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            background: #2a2520;
+            border: 1px solid #3d3426;
+            border-radius: 4px;
+            color: #d4c5a9;
+            font-family: 'Georgia', serif;
+        }
+
+        .add-character-btn {
+            width: 100%;
+            padding: 10px;
+            background: #4d4436;
+            color: #d4c5a9;
+            border: 2px solid #5d5446;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Georgia', serif;
+            transition: all 0.3s ease;
+        }
+
+        .add-character-btn:hover {
+            background: #5d5446;
+            transform: translateY(-2px);
+        }
+
+        .characters-list {
+            margin-top: 20px;
+        }
+
+        .character-item {
+            background: #1a1612;
+            padding: 12px;
+            border-radius: 4px;
+            border-left: 4px solid;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .character-item.player {
+            border-color: #1e90ff;
+        }
+
+        .character-item.npc {
+            border-color: #32cd32;
+        }
+
+        .character-item.enemy {
+            border-color: #dc143c;
+        }
+
+        .character-item.mystery {
+            border-color: #9400d3;
+        }
+
+        .character-info {
+            flex: 1;
+        }
+
+        .character-name {
+            font-weight: bold;
+            color: #d4c5a9;
+        }
+
+        .character-type {
+            font-size: 0.8em;
+            color: #8b7d6b;
+            font-style: italic;
+        }
+
+        .character-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            padding: 4px 8px;
+            background: #3d3426;
+            border: 1px solid #4d4436;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8em;
+            color: #d4c5a9;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #4d4436;
+        }
+
+        .default-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #8b7d6b;
+            font-style: italic;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #d4c5a9;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+            border: 1px solid #3d3426;
+            white-space: nowrap;
+        }
+
+        /* Selection Box */
+        .selection-box {
+            position: absolute;
+            border: 2px dashed #ffd700;
+            background: rgba(255, 215, 0, 0.1);
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+        }
+
+        .selection-box.active {
+            display: block;
+        }
+
+        .map-image-container.selecting {
+            cursor: crosshair;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Flashlight System */
+        #flashlightCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 18;
+            /* Above Fog and Characters, but below UI elements if needed */
+            display: none;
+        }
+
+        .night-mode #flashlightCanvas {
+            display: block;
+        }
+
+        /* Rotation for characters */
+        .character-marker {
+            transition: transform 0.2s ease, left 0.2s ease, top 0.2s ease;
+        }
+
+        /* Fog system removed */
+
+        /* Fog Control Button */
+        .placing-mode-indicator {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 215, 0, 0.95);
+            color: #1a1612;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+            z-index: 10000;
+            display: none;
+            animation: pulse 2s infinite;
+        }
+
+        .placing-mode-indicator.active {
+            display: block;
+        }
+
+        /* Inline Name Input */
+        .inline-name-input {
+            position: absolute;
+            display: none;
+            z-index: 1000;
+        }
+
+        .inline-name-input.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .inline-name-box {
+            background: rgba(26, 22, 18, 0.98);
+            border: 3px solid #ffd700;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8);
+            min-width: 250px;
+        }
+
+        .inline-name-label {
+            color: #ffd700;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .inline-name-field {
+            width: 100%;
+            padding: 10px;
+            background: #1a1612;
+            border: 2px solid #3d3426;
+            border-radius: 4px;
+            color: #d4c5a9;
+            font-family: 'Georgia', serif;
+            font-size: 1em;
+            margin-bottom: 10px;
+        }
+
+        .inline-name-field:focus {
+            outline: none;
+            border-color: #ffd700;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+        }
+
+        .inline-name-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .inline-name-btn {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Georgia', serif;
+            font-size: 0.9em;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+
+        .inline-name-btn-ok {
+            background: #4d4436;
+            color: #ffd700;
+            border-color: #5d5446;
+        }
+
+        .inline-name-btn-ok:hover {
+            background: #5d5446;
+        }
+
+        .inline-name-btn-cancel {
+            background: #3d3426;
+            color: #b8a989;
+            border-color: #4d4436;
+        }
+
+        .inline-name-btn-cancel:hover {
+            background: #4d4436;
+        }
+
+        @media (max-width: 1200px) {
+            .map-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>SISTEMA DE MONITORAMENTO OMEGA</h1>
+            <div class="subtitle">TERMINAL OPERACIONAL v4.2.0 - STATUS: ONLINE</div>
+        </header>
+
+        <div class="map-container">
+            <div class="main-map">
+                <!-- Breadcrumb Navigation -->
+                <div class="breadcrumb" id="breadcrumb">
+                    <div class="breadcrumb-item">
+                        <span class="breadcrumb-link" onclick="navigateToBreadcrumb(0)">📟 Terminal</span>
+                    </div>
+                </div>
+
+                <div class="map-controls">
+                    <button class="back-button" id="backButton" onclick="goBackOneLevel()">
+                        ← Voltar
+                    </button>
+                    <div class="current-map-title" id="currentMapTitle">Mapa Geral do Complexo</div>
+                </div>
+
+                <div class="map-controls">
+                    <button class="control-btn" onclick="quickAddCharacter()">
+                        ➕ Adicionar Personagem
+                    </button>
+                    <button class="control-btn" onclick="toggleLocations()" id="toggleLocationsBtn">
+                        📍 Ocultar Locais
+                    </button>
+                    <button class="control-btn" onclick="copySelectedCharacters()" id="copyBtn">
+                        📋 Copiar Selecionados
+                    </button>
+                    <button class="control-btn" onclick="pasteCharacters()" id="pasteBtn" disabled>
+                        📄 Colar Personagens
+                    </button>
+                    <button class="control-btn" onclick="deselectAll()">
+                        ☐ Deselecionar Todos
+                    </button>
+                    <button class="control-btn" onclick="deleteSelected()">
+                        🗑️ Remover Selecionados
+                    </button>
+                </div>
+
+                <div
+                    style="margin-bottom: 15px; padding: 8px; background: rgba(0, 20, 0, 0.5); border-radius: 2px; border: 1px solid #22c55e; font-size: 0.85em; color: #22c55e; text-align: center;">
+                    ⌨️ <strong style="color: #f59e0b;">1</strong>=Entrada | <strong
+                        style="color: #f59e0b;">2</strong>=Setor 2 | <strong style="color: #f59e0b;">3</strong>=Setor 3
+                    | <strong style="color: #f59e0b;">4</strong>=Setor 4 | <strong
+                        style="color: #f59e0b;">5</strong>=Setor 5 | <strong style="color: #f59e0b;">6</strong>=Setor 6
+                    | <strong style="color: #f59e0b;">0</strong>=Geral | <strong
+                        style="color: #f59e0b;">F2</strong>=Modo CCTV | <strong
+                        style="color: #f59e0b;">E</strong>=Luzes (Lig/Des) | <strong
+                        style="color: #f59e0b;">B</strong>=Blackout | <strong
+                        style="color: #f59e0b;">L</strong>=Lanterna
+                </div>
+
+                <div class="map-image-container" id="mapContainer">
+                    <div class="map-wrapper" id="mapWrapper">
+                        <!-- CCTV OVERLAY LAYERS -->
+                        <div class="noise-overlay"></div>
+                        <div class="cctv-scanlines"></div>
+                        <div class="camera-overlay">
+                            <div class="cctv-header">
+                                <div class="rec-indicator">
+                                    <div class="rec-dot"></div>
+                                    <span>REC</span>
+                                </div>
+                                <div class="cam-id" id="camId">CAM-01 [SISTEMA]</div>
+                            </div>
+                            <div class="cctv-footer">
+                                <div class="cctv-coords" id="cctvCoords">LAT: 55.4211 LONG: 37.1129</div>
+                                <div class="cctv-timestamp" id="cctvTimestamp">0000-00-00 00:00:00</div>
+                            </div>
+                        </div>
+
+                        <canvas id="flashlightCanvas"></canvas>
+                        <img src="bunker_geral.png" alt="ESQUEMA TÉCNICO" class="map-image" id="mapImage">
+                    </div>
+
+                    <div class="selection-box" id="selectionBox"></div>
+
+                    <!-- Floor Selector -->
+                    <div class="floor-selector" id="floorSelector"></div>
+
+                    <!-- Inline Name Input -->
+                    <div class="inline-name-input" id="inlineNameInput">
+                        <div class="inline-name-box">
+                            <label class="inline-name-label">Nome do Personagem:</label>
+                            <input type="text" class="inline-name-field" id="inlineNameField"
+                                placeholder="Digite o nome..." maxlength="50">
+                            <div class="inline-name-buttons">
+                                <button class="inline-name-btn inline-name-btn-ok" onclick="confirmInlineName()">✓
+                                    OK</button>
+                                <button class="inline-name-btn inline-name-btn-cancel" onclick="cancelInlineName()">✕
+                                    Cancelar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // ========================================================================
+        // CONFIGURAÇÃO DA ESTRUTURA DE MAPAS E ANDARES
+        // ========================================================================
+
+        const mapHierarchy = {
+            general: {
+                id: 'general',
+                name: 'Mapa Geral do Complexo',
+                imgBase: 'bunker_geral',
+                imgExt: '.png',
+                hasDayNight: false,
+                icon: '📟',
+                description: 'Visão técnica global de todos os setores monitorados.'
+            },
+            setor_1: {
+                id: 'setor_1',
+                name: 'Entrada',
+                imgBase: 'setor1',
+                imgExt: '.png',
+                hasDayNight: true, // Sistema de Luzes (E)
+                icon: '🚪',
+                description: 'Ponto de acesso principal ao complexo subterrâneo.'
+            },
+            setor_2: {
+                id: 'setor_2',
+                name: 'Setor 02 - Suporte de Vida',
+                imgBase: 'setor2',
+                imgExt: '.png',
+                hasDayNight: true,
+                icon: '⚙️',
+                description: 'Sistemas críticos de oxigênio e filtragem de água.'
+            },
+            setor_3: {
+                id: 'setor_3',
+                name: 'Setor 03 - Laboratório Tecnológico',
+                imgBase: 'setor3',
+                imgExt: '.png',
+                hasDayNight: true,
+                icon: '🧪',
+                description: 'Área de pesquisa e desenvolvimento de alta segurança.'
+            },
+            setor_4: {
+                id: 'setor_4',
+                name: 'Setor 04 - Arsenal e Defesa',
+                imgBase: 'setor4',
+                imgExt: '.png',
+                hasDayNight: true,
+                icon: '⚔️',
+                description: 'Depósito blindado de equipamentos táticos.'
+            },
+            setor_5: {
+                id: 'setor_5',
+                name: 'Setor 05 - Área de Habitação',
+                imgBase: 'setor5',
+                imgExt: '.png',
+                hasDayNight: true,
+                icon: '🛏️',
+                description: 'Acomodações para o pessoal de longo prazo.'
+            },
+            setor_6: {
+                id: 'setor_6',
+                name: 'Setor 06 - Reator e Energia',
+                imgBase: 'setor6',
+                imgExt: '.png',
+                hasDayNight: true,
+                icon: '☢️',
+                description: 'Núcleo energético que sustenta todo o bunker.'
+            }
+        };
+
+        // ========================================================================
+        // ESTADO DA APLICAÇÃO
+        // ========================================================================
+
+        let characters = [];
+        let nextCharId = 1;
+        let placingCharacter = null;
+        let locationsVisible = true;
+        let selectedCharacters = new Set();
+        let isSelecting = false;
+        let selectionStart = { x: 0, y: 0 };
+        let isDraggingGroup = false;
+        let dragGroupStart = { x: 0, y: 0 };
+
+        // Navigation state
+        let navigationPath = ['general']; // Stack de navegação
+        let charactersByLocation = {}; // Personagens por localização
+
+        // Condition systems
+        let isLightsOn = true; // false = desligado, true = ligado
+        let isBlackoutActive = false; // Tecla B
+
+        // Inline name input
+        let pendingCharacterPosition = null;
+
+        // Copy/Paste system
+        let copiedCharacters = [];
+
+        // Token system
+        let placingToken = null;
+        let tokens = [];
+
+        // Flashlight System State
+        let flashlightActive = false;
+        let flashlightState = {
+            angle: 0,
+            width: 45, // Graus do cone
+            intensity: 0.98, // Escuridão do overlay
+            radius: 400 // Raio original restaurado
+        };
+
+        // ========================================================================
+        // FUNÇÕES DE NAVEGAÇÃO
+        // ========================================================================
+
+        function getCurrentLocation() {
+            return navigationPath[navigationPath.length - 1];
+        }
+
+        function getLocationData(locationId) {
+            return mapHierarchy[locationId];
+        }
+
+        function navigateToLocation(locationId) {
+            if (!mapHierarchy[locationId]) {
+                console.error('Location not found:', locationId);
+                return;
+            }
+
+            // Check if location has redirect
+            const locationData = mapHierarchy[locationId];
+            if (locationData.redirectTo) {
+                locationId = locationData.redirectTo;
+            }
+
+            // Save current characters
+            saveCurrentLocationCharacters();
+
+            // Clear selection
+            deselectAll();
+
+            // Add to navigation path
+            navigationPath.push(locationId);
+
+            // Load location
+            loadLocation(locationId);
+
+            // Save to storage
+            saveNavigationState();
+        }
+
+        function goBackOneLevel() {
+            if (navigationPath.length <= 1) return;
+
+            // Save current characters
+            saveCurrentLocationCharacters();
+
+            // Clear selection
+            deselectAll();
+
+            // Remove last from path
+            navigationPath.pop();
+
+            // Load previous location
+            const locationId = getCurrentLocation();
+            loadLocation(locationId);
+
+            // Save to storage
+            saveNavigationState();
+        }
+
+        function navigateToBreadcrumb(index) {
+            if (index < 0 || index >= navigationPath.length) return;
+            if (index === navigationPath.length - 1) return; // Already here
+
+            // Save current characters
+            saveCurrentLocationCharacters();
+
+            // Clear selection
+            deselectAll();
+
+            // Cut path at index
+            navigationPath = navigationPath.slice(0, index + 1);
+
+            // Load location
+            const locationId = getCurrentLocation();
+            loadLocation(locationId);
+
+            // Save to storage
+            saveNavigationState();
+        }
+
+        function loadLocation(locationId) {
+            const locationData = getLocationData(locationId);
+            if (!locationData) return;
+
+            // Update map image
+            const mapImage = document.getElementById('mapImage');
+
+            // Verificar se o mapa tem versão luz ligada/desligada
+            if (locationData.hasDayNight === false) {
+                // Mapa sem versão de luz - usar só a base
+                mapImage.src = locationData.imgBase + locationData.imgExt;
+            } else {
+                // Mapa com versão de luz (ligado/desligado)
+                const suffix = isLightsOn ? '_ligado' : '_desligado';
+                mapImage.src = locationData.imgBase + suffix + locationData.imgExt;
+            }
+
+            mapImage.onerror = function () {
+                this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect fill="%230a0c0d" width="800" height="600"/><text x="50%" y="50%" font-family="Courier New" font-size="20" fill="%2322c55e" text-anchor="middle">ERRO DE CONEXÃO: SETOR ' + locationId.toUpperCase() + ' NÃO ENCONTRADO</text></svg>';
+            };
+
+            // Update title
+            document.getElementById('currentMapTitle').textContent = locationData.icon + " " + locationData.name;
+
+            // Update breadcrumb
+            updateBreadcrumb();
+
+            // Show/hide back button
+            const backButton = document.getElementById('backButton');
+            backButton.classList.toggle('visible', navigationPath.length > 1);
+
+            // Clear and update hotspots
+            clearHotspots();
+            if (locationData.hotspots) {
+                createHotspots(locationData.hotspots);
+            }
+
+            // Adicionar hotspot secreto se estiver no B3 da montanha
+            if (locationId === 'montanha_subsolo_3') {
+                const secretHotspot = {
+                    id: 'caminho_secreto',
+                    title: '🔐 Passagem Secreta para o Pântano',
+                    position: { top: '50%', left: '70%' }
+                };
+                createHotspots([secretHotspot]);
+            }
+
+            // Show/hide floor selector
+            updateFloorSelector(locationData);
+
+            // Update locations toggle button
+            const toggleBtn = document.getElementById('toggleLocationsBtn');
+            if (locationId === 'general' && locationData.hotspots) {
+                toggleBtn.style.display = 'block';
+            } else {
+                toggleBtn.style.display = 'none';
+            }
+
+            // Load characters for this location
+            loadCharactersForLocation(locationId);
+        }
+
+        function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            breadcrumb.innerHTML = '';
+
+            // Mostrar apenas o local atual (último item do path)
+            const currentLocationId = navigationPath[navigationPath.length - 1];
+            const locationData = getLocationData(currentLocationId);
+
+            if (!locationData) return;
+
+            const item = document.createElement('div');
+            item.className = 'breadcrumb-item';
+            item.innerHTML = `<span class="breadcrumb-current">${locationData.icon} ${locationData.name}</span>`;
+
+            breadcrumb.appendChild(item);
+
+            // Update container class for darkness/blackout
+            const mapContainer = document.getElementById('mapContainer');
+            if (isBlackoutActive || !isLightsOn) {
+                mapContainer.classList.add('night-mode');
+                // IMPORTANTE: Garantir que o canvas seja redimensionado e o loop comece
+                setTimeout(initFlashlight, 100); 
+            } else {
+                mapContainer.classList.remove('night-mode');
+            }
+        }
+
+        function updateFloorSelector(locationData) {
+            // Floor selector desabilitado - navegação apenas por hotspots
+            const floorSelector = document.getElementById('floorSelector');
+            floorSelector.innerHTML = '';
+            floorSelector.classList.remove('visible');
+            return;
+        }
+
+        function navigateToFloor(floorId) {
+            // Save current characters
+            saveCurrentLocationCharacters();
+
+            // Clear selection
+            deselectAll();
+
+            // Get current location to check if we need to update navigation path
+            const currentLocationId = getCurrentLocation();
+            const currentLocationData = getLocationData(currentLocationId);
+            const targetLocationData = getLocationData(floorId);
+
+            // Se estamos em um sistema de andares e mudando de andar, substitui o último na pilha
+            if (currentLocationData.parentFloorSystem &&
+                targetLocationData.parentFloorSystem === currentLocationData.parentFloorSystem) {
+                // Substituir último andar
+                navigationPath[navigationPath.length - 1] = floorId;
+            } else if (currentLocationData.hasFloors) {
+                // Entrando em um andar pela primeira vez
+                navigationPath.push(floorId);
+            } else {
+                // Navegação normal
+                navigationPath.push(floorId);
+            }
+
+            // Load new floor
+            loadLocation(floorId);
+
+            // Save to storage
+            saveNavigationState();
+        }
+
+        function clearHotspots() {
+            document.querySelectorAll('.hotspot').forEach(h => h.remove());
+        }
+
+        function createHotspots(hotspots) {
+            const mapContainer = document.getElementById('mapContainer');
+
+            hotspots.forEach(hotspot => {
+                // Verificar se é só nas luzes acesas
+                if (hotspot.dayOnly && !isLightsOn) {
+                    return; 
+                }
+
+                // Verificar se é segredo de blackout
+                if (hotspot.tideOnly && !isBlackoutActive) {
+                    return; 
+                }
+
+                const hotspotEl = document.createElement('div');
+                hotspotEl.className = 'hotspot location-hotspot';
+                hotspotEl.title = hotspot.title;
+                hotspotEl.dataset.location = hotspot.id;
+
+                // Set position
+                Object.entries(hotspot.position).forEach(([key, value]) => {
+                    hotspotEl.style[key] = value;
+                });
+
+                // Create marker with appropriate class
+                let markerClass = 'hotspot-marker';
+                if (hotspot.isSecret) {
+                    markerClass += ' secret';
+                } else if (hotspot.isHidden) {
+                    markerClass += ' hidden';
+                }
+                hotspotEl.innerHTML = `<div class="${markerClass}"></div>`;
+
+                // Add events
+                hotspotEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    hideHotspotTooltip();
+
+                    // Check if it's a point of interest
+                    const targetLocation = mapHierarchy[hotspot.id];
+                    if (targetLocation && targetLocation.isPointOfInterest) {
+                        // Show description instead of navigating
+                        alert(`🎹 ${targetLocation.name}\n\n${targetLocation.description}`);
+                    } else {
+                        navigateToLocation(hotspot.id);
+                    }
+                });
+
+                hotspotEl.addEventListener('mouseenter', showHotspotTooltip);
+                hotspotEl.addEventListener('mousemove', moveHotspotTooltip);
+                hotspotEl.addEventListener('mouseleave', hideHotspotTooltip);
+
+                mapContainer.appendChild(hotspotEl);
+            });
+        }
+
+        function showHotspotTooltip(e) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.textContent = e.currentTarget.title;
+            tooltip.style.opacity = '1';
+        }
+
+        function moveHotspotTooltip(e) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.left = (e.pageX + 15) + 'px';
+            tooltip.style.top = (e.pageY + 15) + 'px';
+        }
+
+        function hideHotspotTooltip() {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.opacity = '0';
+        }
+
+        // ========================================================================
+        // COPY/PASTE SYSTEM
+        // ========================================================================
+
+        function copySelectedCharacters() {
+            if (selectedCharacters.size === 0) {
+                alert('⚠️ Selecione personagens primeiro para copiar!');
+                return;
+            }
+
+            // Copiar dados dos personagens selecionados
+            copiedCharacters = [];
+            selectedCharacters.forEach(charId => {
+                const char = characters.find(c => c.id === charId);
+                if (char) {
+                    // Copiar sem o ID para criar novos IDs ao colar
+                    copiedCharacters.push({
+                        name: char.name,
+                        type: char.type,
+                        icon: char.icon,
+                        x: char.x,
+                        y: char.y
+                    });
+                }
+            });
+
+            // Habilitar botão de colar
+            const pasteBtn = document.getElementById('pasteBtn');
+            pasteBtn.disabled = false;
+            pasteBtn.classList.add('active');
+
+            // Feedback visual
+            const copyBtn = document.getElementById('copyBtn');
+            const originalText = copyBtn.innerHTML;
+            copyBtn.innerHTML = `✓ ${copiedCharacters.length} Copiado(s)`;
+            copyBtn.style.background = '#4d6446';
+
+            setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+                copyBtn.style.background = '';
+            }, 2000);
+        }
+
+        function pasteCharacters() {
+            if (copiedCharacters.length === 0) {
+                alert('⚠️ Nenhum personagem copiado!');
+                return;
+            }
+
+            // Colar personagens com novos IDs
+            copiedCharacters.forEach(charData => {
+                const newChar = {
+                    id: nextCharId++,
+                    name: charData.name,
+                    type: charData.type,
+                    icon: charData.icon,
+                    x: charData.x,
+                    y: charData.y
+                };
+
+                characters.push(newChar);
+                renderCharacter(newChar);
+            });
+
+            saveCurrentLocationCharacters();
+
+            // Feedback visual
+            const pasteBtn = document.getElementById('pasteBtn');
+            const originalText = pasteBtn.innerHTML;
+            pasteBtn.innerHTML = `✓ ${copiedCharacters.length} Colado(s)`;
+            pasteBtn.style.background = '#4d6446';
+
+            setTimeout(() => {
+                pasteBtn.innerHTML = originalText;
+                pasteBtn.style.background = '';
+            }, 2000);
+        }
+
+        // Atalhos de teclado para copiar/colar
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+C / Cmd+C - Copiar
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !e.target.matches('input, textarea')) {
+                if (selectedCharacters.size > 0) {
+                    e.preventDefault();
+                    copySelectedCharacters();
+                }
+            }
+
+            // Ctrl+V / Cmd+V - Colar
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v' && !e.target.matches('input, textarea')) {
+                if (copiedCharacters.length > 0) {
+                    e.preventDefault();
+                    pasteCharacters();
+                }
+            }
+
+            // F2 - Toggle CCTV (Monitoramento)
+            if (e.key === 'F2') {
+                e.preventDefault();
+                toggleCctvMode();
+            }
+
+            // ============================================================
+            // ATALHOS DE NAVEGAÇÃO ENTRE MAPAS
+            // ============================================================
+
+            // Apenas quando NÃO está digitando
+            if (!e.target.matches('input, textarea')) {
+
+                // Tecla 1 - Setor 1
+                if (e.key === '1') {
+                    e.preventDefault();
+                    navigateToLocation('setor_1');
+                }
+
+                // Tecla 2 - Setor 2
+                if (e.key === '2') {
+                    e.preventDefault();
+                    navigateToLocation('setor_2');
+                }
+
+                // Tecla 3 - Setor 3
+                if (e.key === '3') {
+                    e.preventDefault();
+                    navigateToLocation('setor_3');
+                }
+
+                // Tecla 4 - Setor 4
+                if (e.key === '4') {
+                    e.preventDefault();
+                    navigateToLocation('setor_4');
+                }
+
+                // Tecla 5 - Setor 5
+                if (e.key === '5') {
+                    e.preventDefault();
+                    navigateToLocation('setor_5');
+                }
+
+                // Tecla 6 - Setor 6
+                if (e.key === '6') {
+                    e.preventDefault();
+                    navigateToLocation('setor_6');
+                }
+
+                // Tecla 0 - Voltar para Mapa Geral
+                if (e.key === '0') {
+                    e.preventDefault();
+                    navigateToLocation('general');
+                }
+
+                // Tecla L - Toggle Lanterna
+                if (e.key === 'l' || e.key === 'L') {
+                    e.preventDefault();
+                    toggleFlashlight();
+                }
+
+                // Tecla B - Toggle Blackout (Escuridão Total)
+                if (e.key === 'b' || e.key === 'B') {
+                    e.preventDefault();
+                    toggleBlackout();
+                }
+
+                // Tecla E - Toggle Luzes da Sala (ligado/desligado)
+                if (e.key === 'e' || e.key === 'E') {
+                    e.preventDefault();
+                    toggleLights();
+                }
+            }
+        });
+
+        // ========================================================================
+        // SIMPLE CHARACTER CREATION
+        // ========================================================================
+
+        function quickAddCharacter() {
+            // Ativar modo de colocação imediatamente
+            placingCharacter = {
+                pending: true // Flag indicando que precisa pedir nome depois
+            };
+
+            document.getElementById('mapContainer').classList.add('placing-character');
+
+        }
+
+        // ========================================================================
+        // CHARACTER MANAGEMENT
+        // ========================================================================
+
+        function saveCurrentLocationCharacters() {
+            const locationId = getCurrentLocation();
+            charactersByLocation[locationId] = [...characters];
+            saveAllCharactersToStorage();
+        }
+
+        function loadCharactersForLocation(locationId) {
+            // Clear DOM
+            document.querySelectorAll('.character-marker').forEach(m => m.remove());
+
+            // Load characters
+            characters = charactersByLocation[locationId] || [];
+            characters.forEach(char => renderCharacter(char));
+
+        }
+
+        function placeCharacter(x, y) {
+            if (!placingCharacter) return;
+
+            // Guardar a posição onde clicou
+            pendingCharacterPosition = { x, y };
+
+            // Calcular posição do input no mapa (em pixels)
+            const mapImage = document.getElementById('mapImage');
+            const rect = mapImage.getBoundingClientRect();
+            const pixelX = (x / 100) * rect.width;
+            const pixelY = (y / 100) * rect.height;
+
+            // Posicionar o input inline
+            const inlineInput = document.getElementById('inlineNameInput');
+            inlineInput.style.left = pixelX + 'px';
+            inlineInput.style.top = pixelY + 'px';
+            inlineInput.classList.add('active');
+
+            // Focar no campo
+            const field = document.getElementById('inlineNameField');
+            field.value = '';
+            setTimeout(() => field.focus(), 100);
+
+            // Esconder indicador
+
+        }
+
+        function confirmInlineName() {
+            const name = document.getElementById('inlineNameField').value.trim();
+
+            if (!name) {
+                alert('Por favor, digite um nome!');
+                return;
+            }
+
+            // Criar personagem
+            const character = {
+                id: nextCharId++,
+                name: name,
+                type: 'player',
+                icon: '👤',
+                x: pendingCharacterPosition.x,
+                y: pendingCharacterPosition.y,
+                rotation: 0,
+                flashlightOn: false
+            };
+
+            characters.push(character);
+            renderCharacter(character);
+            saveCurrentLocationCharacters();
+
+            // Limpar tudo
+            closeInlineNameInput();
+        }
+
+        function cancelInlineName() {
+            closeInlineNameInput();
+        }
+
+        function closeInlineNameInput() {
+            document.getElementById('inlineNameInput').classList.remove('active');
+            document.getElementById('inlineNameField').value = '';
+            placingCharacter = null;
+            pendingCharacterPosition = null;
+            document.getElementById('mapContainer').classList.remove('placing-character');
+
+        }
+
+        function renderCharacter(char) {
+            const mapContainer = document.getElementById('mapContainer');
+            const marker = document.createElement('div');
+            marker.className = `character-marker character-${char.type}`;
+            marker.id = `char-${char.id}`;
+            marker.style.left = `${char.x}%`;
+            marker.style.top = `${char.y}%`;
+            marker.style.transform = `translate(-50%, -50%) rotate(${char.rotation || 0}deg)`;
+
+            marker.innerHTML = `
+                <div class="character-icon">${char.icon}</div>
+                <div class="character-label">${char.name}</div>
+                <div class="character-remove" onclick="removeCharacter(${char.id}); event.stopPropagation();">✕</div>
+            `;
+
+            mapContainer.appendChild(marker);
+        }
+
+        function removeCharacter(charId) {
+            // Remover direto sem confirmação
+            characters = characters.filter(c => c.id !== charId);
+            const marker = document.getElementById(`char-${charId}`);
+            if (marker) marker.remove();
+            saveCurrentLocationCharacters();
+
+            // Remover da seleção se estiver selecionado
+            selectedCharacters.delete(charId);
+        }
+
+        function updateCharactersList() {
+            const list = document.getElementById('charactersList');
+
+            if (characters.length === 0) {
+                list.innerHTML = '<p style="color: #8b7d6b; font-style: italic; text-align: center;">Nenhum personagem adicionado ainda</p>';
+                return;
+            }
+
+            const typeNames = {
+                player: 'Jogador',
+                npc: 'NPC Aliado',
+                enemy: 'Inimigo',
+                mystery: 'Mistério'
+            };
+
+            list.innerHTML = characters.map(char => `
+                <div class="character-item ${char.type}">
+                    <div class="character-info">
+                        <div class="character-name">${char.icon} ${char.name}</div>
+                        <div class="character-type">${typeNames[char.type]}</div>
+                    </div>
+                    <div class="character-actions">
+                        <button class="action-btn" onclick="focusCharacter(${char.id})">📍</button>
+                        <button class="action-btn" onclick="removeCharacter(${char.id})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function focusCharacter(charId) {
+            const marker = document.getElementById(`char-${charId}`);
+            if (marker) {
+                marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                marker.style.animation = 'none';
+                setTimeout(() => {
+                    marker.style.animation = 'pulse 0.5s ease 3';
+                }, 10);
+            }
+        }
+
+        // ========================================================================
+        // MULTI-SELECTION SYSTEM
+        // ========================================================================
+
+        function setupMultiSelection() {
+            const mapContainer = document.getElementById('mapContainer');
+            const mapImage = document.getElementById('mapImage');
+            const selectionBox = document.getElementById('selectionBox');
+
+            // CRUCIAL: Prevenir drag da imagem
+            mapImage.addEventListener('dragstart', (e) => {
+                e.preventDefault();
+                return false;
+            });
+
+            // Prevenir seleção de texto
+            mapImage.style.userSelect = 'none';
+            mapImage.style.webkitUserSelect = 'none';
+            mapImage.style.mozUserSelect = 'none';
+
+            mapContainer.addEventListener('mousedown', (e) => {
+                // Não fazer nada se está colocando personagem
+                if (placingCharacter) {
+                    // NÃO prevenir default quando está colocando - deixa o click passar
+                    return;
+                }
+
+                // Não fazer nada se clicou em hotspot
+                if (e.target.classList.contains('hotspot-marker') || e.target.closest('.hotspot')) return;
+
+                // Prevenir comportamento padrão do navegador
+                e.preventDefault();
+
+                const clickedChar = e.target.closest('.character-marker');
+                const clickedToken = e.target.closest('.token-marker');
+
+                // Se clicou em um TOKEN
+                if (clickedToken && clickedToken.dataset.selected === 'true') {
+                    // Token selecionado - iniciar drag do grupo (personagens + tokens)
+                    isDraggingGroup = true;
+                    isSelecting = false;
+                    dragGroupStart = { x: e.clientX, y: e.clientY };
+                    mapContainer.style.cursor = 'grabbing';
+                    return;
+                }
+
+                // Se clicou em um personagem
+                if (clickedChar) {
+                    const charId = parseInt(clickedChar.id.replace('char-', ''));
+
+                    // Ctrl+Click = adicionar/remover da seleção
+                    if (e.ctrlKey || e.metaKey) {
+                        toggleCharacterSelection(charId);
+                        return;
+                    }
+
+                    // Se já está selecionado, iniciar drag do grupo
+                    if (selectedCharacters.has(charId)) {
+                        isDraggingGroup = true;
+                        isSelecting = false;
+                        dragGroupStart = { x: e.clientX, y: e.clientY };
+                        mapContainer.style.cursor = 'grabbing';
+                        return;
+                    }
+
+                    // Se não está selecionado, selecionar só ele e iniciar drag
+                    deselectAll();
+                    selectCharacter(charId);
+                    isDraggingGroup = true;
+                    isSelecting = false;
+                    dragGroupStart = { x: e.clientX, y: e.clientY };
+                    mapContainer.style.cursor = 'grabbing';
+                    return;
+                }
+
+                // Se clicou no mapa vazio = iniciar seleção por área
+                if (e.target === mapImage || e.target === mapContainer) {
+                    if (!e.ctrlKey && !e.metaKey) {
+                        deselectAll();
+                    }
+
+                    // Forçar que não está arrastando
+                    isDraggingGroup = false;
+                    isSelecting = true;
+
+                    const rect = mapImage.getBoundingClientRect();
+                    selectionStart.x = e.clientX - rect.left;
+                    selectionStart.y = e.clientY - rect.top;
+
+                    selectionBox.style.left = selectionStart.x + 'px';
+                    selectionBox.style.top = selectionStart.y + 'px';
+                    selectionBox.style.width = '0px';
+                    selectionBox.style.height = '0px';
+                    selectionBox.classList.add('active');
+                    mapContainer.classList.add('selecting');
+                }
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                // Se está arrastando personagens
+                if (isDraggingGroup && !isSelecting) {
+                    e.preventDefault();
+                    const deltaX = e.clientX - dragGroupStart.x;
+                    const deltaY = e.clientY - dragGroupStart.y;
+
+                    const rect = mapImage.getBoundingClientRect();
+                    const deltaXPercent = (deltaX / rect.width) * 100;
+                    const deltaYPercent = (deltaY / rect.height) * 100;
+
+                    moveSelectedCharacters(deltaXPercent, deltaYPercent);
+
+                    dragGroupStart = { x: e.clientX, y: e.clientY };
+                    return;
+                }
+
+                // Se está selecionando área
+                if (isSelecting && !isDraggingGroup) {
+                    e.preventDefault();
+                    const rect = mapImage.getBoundingClientRect();
+                    const currentX = e.clientX - rect.left;
+                    const currentY = e.clientY - rect.top;
+
+                    const width = Math.abs(currentX - selectionStart.x);
+                    const height = Math.abs(currentY - selectionStart.y);
+                    const left = Math.min(currentX, selectionStart.x);
+                    const top = Math.min(currentY, selectionStart.y);
+
+                    selectionBox.style.left = left + 'px';
+                    selectionBox.style.top = top + 'px';
+                    selectionBox.style.width = width + 'px';
+                    selectionBox.style.height = height + 'px';
+
+                    updateSelectionInBox(left, top, width, height, rect);
+                }
+            });
+
+            document.addEventListener('mouseup', (e) => {
+                if (isDraggingGroup) {
+                    isDraggingGroup = false;
+                    mapContainer.style.cursor = '';
+                    saveCurrentLocationCharacters();
+                }
+
+                if (isSelecting) {
+                    isSelecting = false;
+                    selectionBox.classList.remove('active');
+                    mapContainer.classList.remove('selecting');
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Delete' || e.key === 'Backspace') {
+                    if ((selectedCharacters.size > 0 || hasSelectedToken()) && !e.target.matches('input, textarea')) {
+                        e.preventDefault();
+                        deleteSelected();
+                        deleteSelectedToken();
+                    }
+                }
+
+                // Espelhar tokens selecionados com setas
+                if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && hasSelectedToken() && !e.target.matches('input, textarea')) {
+                    e.preventDefault();
+                    flipSelectedTokens();
+                }
+
+                if (e.key === 'Escape') {
+                    deselectAll();
+                    // Cancelar input inline se estiver ativo
+                    if (document.getElementById('inlineNameInput').classList.contains('active')) {
+                        cancelInlineName();
+                    }
+                    // Cancelar criação de personagem se estiver ativa
+                    if (placingCharacter) {
+                        placingCharacter = null;
+                        document.getElementById('mapContainer').classList.remove('placing-character');
+
+                    }
+                }
+
+                // Enter para confirmar nome
+                if (e.key === 'Enter' && document.getElementById('inlineNameInput').classList.contains('active')) {
+                    confirmInlineName();
+                }
+            });
+        }
+
+        function updateSelectionInBox(left, top, width, height, containerRect) {
+            // Selecionar PERSONAGENS na caixa
+            characters.forEach(char => {
+                const marker = document.getElementById(`char-${char.id}`);
+                if (!marker) return;
+
+                const markerRect = marker.getBoundingClientRect();
+                const markerX = markerRect.left + markerRect.width / 2 - containerRect.left;
+                const markerY = markerRect.top + markerRect.height / 2 - containerRect.top;
+
+                const inBox = markerX >= left && markerX <= left + width &&
+                    markerY >= top && markerY <= top + height;
+
+                if (inBox) {
+                    selectCharacter(char.id);
+                }
+            });
+
+            // Selecionar TOKENS na caixa
+            tokens.forEach(token => {
+                const marker = document.getElementById(`token-${token.id}`);
+                if (!marker) return;
+
+                const markerRect = marker.getBoundingClientRect();
+                const markerX = markerRect.left + markerRect.width / 2 - containerRect.left;
+                const markerY = markerRect.top + markerRect.height / 2 - containerRect.top;
+
+                const inBox = markerX >= left && markerX <= left + width &&
+                    markerY >= top && markerY <= top + height;
+
+                if (inBox) {
+                    selectToken(marker);
+                }
+            });
+        }
+
+        function selectCharacter(charId) {
+            selectedCharacters.add(charId);
+            const marker = document.getElementById(`char-${charId}`);
+            if (marker) {
+                marker.classList.add('selected');
+            }
+        }
+
+        function deselectCharacter(charId) {
+            selectedCharacters.delete(charId);
+            const marker = document.getElementById(`char-${charId}`);
+            if (marker) {
+                marker.classList.remove('selected');
+            }
+        }
+
+        function toggleCharacterSelection(charId) {
+            if (selectedCharacters.has(charId)) {
+                deselectCharacter(charId);
+            } else {
+                selectCharacter(charId);
+            }
+        }
+
+        function deselectAll() {
+            // Deselecionar personagens
+            selectedCharacters.forEach(charId => {
+                const marker = document.getElementById(`char-${charId}`);
+                if (marker) {
+                    marker.classList.remove('selected');
+                }
+            });
+            selectedCharacters.clear();
+
+            // Deselecionar tokens
+            document.querySelectorAll('.token-marker').forEach(t => {
+                t.style.border = 'none';
+                t.style.boxShadow = 'none';
+                t.dataset.selected = 'false';
+            });
+        }
+
+        function moveSelectedCharacters(deltaX, deltaY) {
+            // Mover PERSONAGENS selecionados
+            selectedCharacters.forEach(charId => {
+                const char = characters.find(c => c.id === charId);
+                if (char) {
+                    char.x = Math.max(0, Math.min(100, char.x + deltaX));
+                    char.y = Math.max(0, Math.min(100, char.y + deltaY));
+
+                    const marker = document.getElementById(`char-${charId}`);
+                    if (marker) {
+                        marker.style.left = `${char.x}%`;
+                        marker.style.top = `${char.y}%`;
+                    }
+                }
+            });
+
+            // Mover TOKENS selecionados
+            document.querySelectorAll('.token-marker[data-selected="true"]').forEach(tokenEl => {
+                const tokenId = parseInt(tokenEl.id.replace('token-', ''));
+                const token = tokens.find(t => t.id === tokenId);
+                if (token) {
+                    token.x = Math.max(0, Math.min(100, token.x + deltaX));
+                    token.y = Math.max(0, Math.min(100, token.y + deltaY));
+
+                    tokenEl.style.left = `${token.x}%`;
+                    tokenEl.style.top = `${token.y}%`;
+                }
+            });
+        }
+
+        function deleteSelected() {
+            if (selectedCharacters.size === 0) return;
+
+            // Deletar direto sem confirmação
+            selectedCharacters.forEach(charId => {
+                const marker = document.getElementById(`char-${charId}`);
+                if (marker) marker.remove();
+                characters = characters.filter(c => c.id !== charId);
+            });
+
+            selectedCharacters.clear();
+            saveCurrentLocationCharacters();
+        }
+
+        // ========================================================================
+        // TOKEN SYSTEM
+        // ========================================================================
+
+        function startPlacingToken(imageSrc, name) {
+            placingToken = {
+                imageSrc: imageSrc,
+                name: name
+            };
+            document.getElementById('mapContainer').style.cursor = 'crosshair';
+        }
+
+        function placeToken(x, y) {
+            if (!placingToken) return;
+
+            const token = {
+                id: Date.now(),
+                imageSrc: placingToken.imageSrc,
+                name: placingToken.name,
+                x: x,
+                y: y
+            };
+
+            tokens.push(token);
+            renderToken(token);
+
+            // Reset
+            placingToken = null;
+            document.getElementById('mapContainer').style.cursor = '';
+        }
+
+        function renderToken(token) {
+            const mapContainer = document.getElementById('mapContainer');
+            const tokenEl = document.createElement('div');
+            tokenEl.className = 'token-marker';
+            tokenEl.id = `token-${token.id}`;
+            tokenEl.style.left = `${token.x}%`;
+            tokenEl.style.top = `${token.y}%`;
+            tokenEl.style.width = '320px';  // 8x maior que personagens (40px)
+            tokenEl.style.height = '320px'; // 8x maior que personagens (40px)
+            tokenEl.style.position = 'absolute';
+            tokenEl.style.transform = 'translate(-50%, -50%)';
+            tokenEl.style.cursor = 'move';
+            tokenEl.style.zIndex = '25';
+            tokenEl.style.borderRadius = '50%'; // Circular!
+
+            const img = document.createElement('img');
+            img.src = token.imageSrc;
+            img.alt = token.name;
+            img.title = token.name;
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'contain';
+            img.style.pointerEvents = 'none';
+            img.style.borderRadius = '50%'; // Circular!
+            img.style.transition = 'transform 0.2s ease'; // Suavizar flip
+
+            // Inicializar flip
+            if (!token.flipped) token.flipped = false;
+            img.style.transform = token.flipped ? 'scaleX(-1)' : 'scaleX(1)';
+
+            img.onerror = function () {
+                this.style.display = 'none';
+                tokenEl.innerHTML = `<div style="width:100%;height:100%;background:rgba(200,0,0,0.5);border:2px solid red;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:2em;">❌</div>`;
+            };
+
+            tokenEl.appendChild(img);
+            mapContainer.appendChild(tokenEl);
+
+            makeTokenDraggable(tokenEl, token);
+        }
+
+        function makeTokenDraggable(tokenEl, token) {
+            let isDragging = false;
+            let hasMoved = false;
+            let startX, startY, initialLeft, initialTop;
+
+            // Mousedown - Iniciar drag
+            tokenEl.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+
+                // Se já está selecionado com outros, não arrastar individualmente
+                // Deixa o sistema de grupo lidar com isso
+                if (tokenEl.dataset.selected === 'true' && (selectedCharacters.size > 0 || hasMultipleSelectedTokens())) {
+                    return;
+                }
+
+                hasMoved = false;
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+
+                const rect = tokenEl.getBoundingClientRect();
+                const container = document.getElementById('mapContainer').getBoundingClientRect();
+                initialLeft = rect.left - container.left;
+                initialTop = rect.top - container.top;
+
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            // Click - Selecionar (só se não arrastou)
+            tokenEl.addEventListener('click', (e) => {
+                if (!hasMoved) {
+                    e.stopPropagation();
+                    selectToken(tokenEl);
+                }
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+
+                // Se moveu mais de 3 pixels, considera como drag
+                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                    hasMoved = true;
+                    tokenEl.style.opacity = '0.7';
+                }
+
+                const newLeft = initialLeft + dx;
+                const newTop = initialTop + dy;
+
+                tokenEl.style.left = newLeft + 'px';
+                tokenEl.style.top = newTop + 'px';
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    tokenEl.style.opacity = '1';
+
+                    if (hasMoved) {
+                        // Update token position
+                        const mapImage = document.getElementById('mapImage');
+                        const rect = mapImage.getBoundingClientRect();
+                        const tokenRect = tokenEl.getBoundingClientRect();
+
+                        token.x = ((tokenRect.left + tokenRect.width / 2 - rect.left) / rect.width) * 100;
+                        token.y = ((tokenRect.top + tokenRect.height / 2 - rect.top) / rect.height) * 100;
+
+                        tokenEl.style.left = `${token.x}%`;
+                        tokenEl.style.top = `${token.y}%`;
+                    }
+
+                    hasMoved = false;
+                }
+            });
+        }
+
+        function selectToken(tokenEl) {
+            // Deselect all tokens
+            document.querySelectorAll('.token-marker').forEach(t => {
+                t.style.border = 'none';
+                t.style.boxShadow = 'none';
+            });
+
+            // Select this token - borda circular dourada
+            tokenEl.style.border = '3px solid #FFD700';
+            tokenEl.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.6)';
+            tokenEl.dataset.selected = 'true';
+        }
+
+        function hasSelectedToken() {
+            return document.querySelector('.token-marker[data-selected="true"]') !== null;
+        }
+
+        function hasMultipleSelectedTokens() {
+            return document.querySelectorAll('.token-marker[data-selected="true"]').length > 1;
+        }
+
+        function flipSelectedTokens() {
+            document.querySelectorAll('.token-marker[data-selected="true"]').forEach(tokenEl => {
+                const tokenId = parseInt(tokenEl.id.replace('token-', ''));
+                const token = tokens.find(t => t.id === tokenId);
+                if (token) {
+                    // Inverter estado de flip
+                    token.flipped = !token.flipped;
+
+                    // Aplicar espelhamento na imagem
+                    const img = tokenEl.querySelector('img');
+                    if (img) {
+                        img.style.transform = token.flipped ? 'scaleX(-1)' : 'scaleX(1)';
+                    }
+                }
+            });
+        }
+
+        function deleteSelectedToken() {
+            const selectedToken = document.querySelector('.token-marker[data-selected="true"]');
+            if (!selectedToken) return;
+
+            // Get token ID from element
+            const tokenId = parseInt(selectedToken.id.replace('token-', ''));
+
+            // Remove from DOM
+            selectedToken.remove();
+
+            // Remove from array
+            const index = tokens.findIndex(t => t.id === tokenId);
+            if (index > -1) {
+                tokens.splice(index, 1);
+            }
+        }
+
+
+
+        // ========================================================================
+        // BLACKOUT SYSTEM (B)
+        // ========================================================================
+
+        function toggleBlackout() {
+            isBlackoutActive = !isBlackoutActive;
+            localStorage.setItem('rpgBlackoutMode', isBlackoutActive ? 'on' : 'off');
+
+            const mapContainer = document.getElementById('mapContainer');
+            if (isBlackoutActive) {
+                mapContainer.classList.add('night-mode');
+                initFlashlight();
+            } else {
+                mapContainer.classList.remove('night-mode');
+            }
+        }
+
+        // ========================================================================
+        // LIGHTS SYSTEM (E)
+        // ========================================================================
+
+        function toggleLights() {
+            isLightsOn = !isLightsOn;
+            localStorage.setItem('rpgLightsMode', isLightsOn ? 'ligado' : 'desligado');
+
+            // Recarregar imagem do mapa com o novo sufixo
+            const locationId = getCurrentLocation();
+            loadLocation(locationId);
+        }
+
+        // ========================================================================
+        // UTILITY FUNCTIONS
+        // ========================================================================
+
+        function toggleLocations() {
+            const locationId = getCurrentLocation();
+            if (locationId !== 'general') return;
+
+            locationsVisible = !locationsVisible;
+            document.querySelectorAll('.location-hotspot').forEach(hotspot => {
+                hotspot.style.display = locationsVisible ? 'block' : 'none';
+            });
+
+            const toggleBtn = document.getElementById('toggleLocationsBtn');
+            toggleBtn.textContent = locationsVisible ? '📍 Ocultar Locais' : '📍 Mostrar Locais';
+        }
+
+        // ========================================================================
+        // STORAGE FUNCTIONS
+        // ========================================================================
+
+        function saveNavigationState() {
+            localStorage.setItem('rpgNavigationPath', JSON.stringify(navigationPath));
+        }
+
+        function loadNavigationState() {
+            const saved = localStorage.getItem('rpgNavigationPath');
+            if (saved) {
+                try {
+                    navigationPath = JSON.parse(saved);
+                    if (navigationPath.length === 0) {
+                        navigationPath = ['general'];
+                    }
+                } catch (e) {
+                    navigationPath = ['general'];
+                }
+            }
+        }
+
+        function saveAllCharactersToStorage() {
+            // Save current location first
+            const locationId = getCurrentLocation();
+            charactersByLocation[locationId] = [...characters];
+
+            // Calculate next ID
+            let maxId = 0;
+            Object.values(charactersByLocation).forEach(locationChars => {
+                locationChars.forEach(char => {
+                    if (char.id > maxId) maxId = char.id;
+                });
+            });
+
+            const saveData = {
+                charactersByLocation: charactersByLocation,
+                nextCharId: maxId + 1
+            };
+
+            localStorage.setItem('rpgMapCharactersV3', JSON.stringify(saveData));
+        }
+
+        function loadAllCharactersFromStorage() {
+            const saved = localStorage.getItem('rpgMapCharactersV3');
+            if (saved) {
+                try {
+                    const saveData = JSON.parse(saved);
+                    charactersByLocation = saveData.charactersByLocation || {};
+                    nextCharId = saveData.nextCharId || 1;
+                } catch (e) {
+                    console.error('Error loading characters:', e);
+                    charactersByLocation = {};
+                    nextCharId = 1;
+                }
+            }
+        }
+
+
+        // ========================================================================
+        // FLASHLIGHT & ROTATION SYSTEM
+        // ========================================================================
+
+        function initFlashlight() {
+            const canvas = document.getElementById('flashlightCanvas');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const mapImage = document.getElementById('mapImage');
+
+            function resizeCanvas() {
+                canvas.width = mapImage.clientWidth;
+                canvas.height = mapImage.clientHeight;
+                drawFlashlight();
+            }
+
+            // Sync canvas size with image
+            if (mapImage.complete) {
+                resizeCanvas();
+            } else {
+                mapImage.onload = resizeCanvas;
+            }
+
+            window.addEventListener('resize', resizeCanvas);
+
+            // Start animation loop
+            if (!flashlightActive) {
+                flashlightActive = true;
+                requestAnimationFrame(flashlightLoop);
+            }
+        }
+
+        function flashlightLoop() {
+            if ((isBlackoutActive || !isLightsOn) && flashlightActive) {
+                drawFlashlight();
+                requestAnimationFrame(flashlightLoop);
+            } else {
+                flashlightActive = false;
+            }
+        }
+
+        function toggleFlashlight() {
+            if (selectedCharacters.size === 0) {
+                alert('⚠️ Selecione um personagem para ligar a lanterna!');
+                return;
+            }
+
+            selectedCharacters.forEach(charId => {
+                const char = characters.find(c => c.id === charId);
+                if (char) {
+                    char.flashlightOn = !char.flashlightOn;
+                }
+            });
+
+            saveCurrentLocationCharacters();
+        }
+
+        function drawFlashlight() {
+            const canvas = document.getElementById('flashlightCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            // Se o ambiente não estiver escuro, limpa e sai
+            if (!isBlackoutActive && isLightsOn) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+
+            // 1. Limpar e preencher com escuridão total
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Ajustar intensidade baseado no modo
+            const darknessIntensity = isBlackoutActive ? 0.98 : 0.85;
+            ctx.fillStyle = `rgba(0, 0, 5, ${darknessIntensity})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. "Cortar" a luz para cada personagem com lanterna ligada
+            characters.forEach(char => {
+                if (!char.flashlightOn) return;
+
+                const x = (char.x / 100) * canvas.width;
+                const y = (char.y / 100) * canvas.height;
+                const angle = (char.rotation || 0) * (Math.PI / 180);
+                const halfWidth = (flashlightState.width / 2) * (Math.PI / 180);
+
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-out';
+
+                // Desenhar o cone com gradiente radial para suavizar
+                const gradient = ctx.createRadialGradient(x, y, 0, x, y, flashlightState.radius);
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.95, 'rgba(255, 255, 255, 0.7)');
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+                ctx.fillStyle = gradient;
+
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                // O arco começa em angle-PI/2 porque 0 radianos no canvas é para a direita (3 horas)
+                ctx.arc(x, y, flashlightState.radius, angle - halfWidth - Math.PI / 2, angle + halfWidth - Math.PI / 2);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.restore();
+            });
+        }
+
+        // ========================================================================
+        // EVENT LISTENERS
+        // ========================================================================
+
+        function setupEventListeners() {
+            const mapContainer = document.getElementById('mapContainer');
+            const mapImage = document.getElementById('mapImage');
+
+            // Click to place character or token
+            mapContainer.addEventListener('click', (e) => {
+                // Se está colocando token
+                if (placingToken) {
+                    if (e.target.classList.contains('map-image') || e.target === mapContainer) {
+                        const rect = mapImage.getBoundingClientRect();
+                        const x = ((e.clientX - rect.left) / rect.width) * 100;
+                        const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+                        placeToken(x, y);
+                    }
+                    return;
+                }
+
+                // Se está colocando personagem
+                if (placingCharacter) {
+                    // Aceitar clique na imagem OU no container
+                    if (e.target.classList.contains('map-image') || e.target === mapContainer) {
+                        const rect = mapImage.getBoundingClientRect();
+                        const x = ((e.clientX - rect.left) / rect.width) * 100;
+                        const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+                        placeCharacter(x, y);
+                    }
+                }
+            });
+
+            // Mouse Wheel Rotation
+            mapContainer.addEventListener('wheel', (e) => {
+                if (selectedCharacters.size > 0 && !e.target.matches('input, textarea')) {
+                    // Se algum personagem está selecionado, rodar em vez de scrollar no mapa
+                    e.preventDefault();
+
+                    const delta = e.deltaY > 0 ? 5 : -5;
+
+                    selectedCharacters.forEach(charId => {
+                        const char = characters.find(c => c.id === charId);
+                        if (char) {
+                            char.rotation = (char.rotation || 0) + delta;
+
+                            // Atualizar visual
+                            const marker = document.getElementById(`char-${charId}`);
+                            if (marker) {
+                                marker.style.transform = `translate(-50%, -50%) rotate(${char.rotation}deg)`;
+                            }
+                        }
+                    });
+
+                    // Redesenhar lanterna imediatamente para resposta rápida
+                    drawFlashlight();
+
+                    saveCurrentLocationCharacters();
+                }
+            }, { passive: false });
+        }
+
+        // ========================================================================
+        // INITIALIZATION
+        // ========================================================================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            setupMultiSelection();
+
+            // Load saved data
+            loadAllCharactersFromStorage();
+            loadNavigationState();
+
+            const savedMode = localStorage.getItem('rpgDayNightMode') || 'noite';
+            isDayMode = (savedMode === 'dia');
+            document.getElementById('dayNightToggle').checked = isDayMode;
+
+            const savedTide = localStorage.getItem('rpgTideMode') || 'alta';
+            isTideLow = (savedTide === 'baixa');
+            document.getElementById('tideToggle').checked = isTideLow;
+
+            // Load current location
+            const locationId = getCurrentLocation();
+            loadLocation(locationId);
+        });
+
+        // ========================================================================
+        // CCTV INTERFACE LOGIC
+        // ========================================================================
+
+        function updateCctvOverlay() {
+            const timestampEl = document.getElementById('cctvTimestamp');
+            const camIdEl = document.getElementById('camId');
+            const coordsEl = document.getElementById('cctvCoords');
+
+            if (!timestampEl) return;
+
+            // Update Time
+            const now = new Date();
+            const timeStr = now.getFullYear() + '-' +
+                String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                String(now.getDate()).padStart(2, '0') + ' ' +
+                String(now.getHours()).padStart(2, '0') + ':' +
+                String(now.getMinutes()).padStart(2, '0') + ':' +
+                String(now.getSeconds()).padStart(2, '0');
+            timestampEl.textContent = timeStr;
+
+            // Update Cam ID based on location
+            const loc = getCurrentLocation();
+            const locData = mapHierarchy[loc];
+            if (locData) {
+                camIdEl.textContent = `CAM-${String(Object.keys(mapHierarchy).indexOf(loc)).padStart(2, '0')} [${locData.name.toUpperCase()}]`;
+            }
+
+            // Pseudo-random coords jitter
+            if (Math.random() > 0.8) {
+                const lat = (55.4211 + (Math.random() - 0.5) * 0.001).toFixed(4);
+                const long = (37.1129 + (Math.random() - 0.5) * 0.001).toFixed(4);
+                coordsEl.textContent = `LAT: ${lat} LONG: ${long}`;
+            }
+        }
+
+        // Start CCTV loop
+        setInterval(updateCctvOverlay, 1000);
+
+        function toggleCctvMode() {
+            cctvEnabled = !cctvEnabled;
+            const overlays = [
+                document.querySelector('.noise-overlay'),
+                document.querySelector('.cctv-scanlines'),
+                document.querySelector('.camera-overlay')
+            ];
+            overlays.forEach(el => {
+                if (el) el.style.display = cctvEnabled ? 'block' : 'none';
+            });
+        }
+    </script>
+    <!-- FILTROS SVG PARA EFEITOS CRT/CCTV -->
+    <svg style="display:none">
+        <filter id="noiseFilter">
+            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+            <feColorMatrix type="saturate" values="0" />
+        </filter>
+    </svg>
+</body>
+
+</html>
