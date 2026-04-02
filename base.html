@@ -312,7 +312,7 @@
 
         /* Blackout visual: O brilho é reduzido levemente, mas a escuridão real vem do Canvas */
         .night-mode .map-image {
-            filter: brightness(0.4) contrast(1.2); 
+            filter: brightness(0.4) contrast(1.2);
         }
 
         #flashlightCanvas {
@@ -322,7 +322,8 @@
             width: 100%;
             height: 100%;
             pointer-events: none;
-            z-index: 40; /* Acima da img mas abaixo da câmera (45+) */
+            z-index: 40;
+            /* Acima da img mas abaixo da câmera (45+) */
         }
 
         /* CCTV CAMERA OVERLAY */
@@ -1058,9 +1059,8 @@
                     | <strong style="color: #f59e0b;">4</strong>=Setor 4 | <strong
                         style="color: #f59e0b;">5</strong>=Setor 5 | <strong style="color: #f59e0b;">6</strong>=Setor 6
                     | <strong style="color: #f59e0b;">0</strong>=Geral | <strong
-                        style="color: #f59e0b;">F2</strong>=Modo CCTV | <strong
-                        style="color: #f59e0b;">E</strong>=Luzes (Lig/Des) | <strong
-                        style="color: #f59e0b;">B</strong>=Blackout | <strong
+                        style="color: #f59e0b;">F2</strong>=Modo CCTV | <strong style="color: #f59e0b;">E</strong>=Luzes
+                    (Lig/Des) | <strong style="color: #f59e0b;">B</strong>=Blackout | <strong
                         style="color: #f59e0b;">L</strong>=Lanterna
                 </div>
 
@@ -1387,10 +1387,9 @@
 
             // Update container class for darkness/blackout
             const mapContainer = document.getElementById('mapContainer');
-            if (isBlackoutActive || !isLightsOn) {
+            if (isBlackoutActive) { // remover o || !isLightsOn daqui
                 mapContainer.classList.add('night-mode');
-                // IMPORTANTE: Garantir que o canvas seja redimensionado e o loop comece
-                setTimeout(initFlashlight, 100); 
+                setTimeout(initFlashlight, 100);
             } else {
                 mapContainer.classList.remove('night-mode');
             }
@@ -1446,12 +1445,12 @@
             hotspots.forEach(hotspot => {
                 // Verificar se é só nas luzes acesas
                 if (hotspot.dayOnly && !isLightsOn) {
-                    return; 
+                    return;
                 }
 
                 // Verificar se é segredo de blackout
                 if (hotspot.tideOnly && !isBlackoutActive) {
-                    return; 
+                    return;
                 }
 
                 const hotspotEl = document.createElement('div');
@@ -2485,25 +2484,31 @@
             const canvas = document.getElementById('flashlightCanvas');
             if (!canvas) return;
 
-            const ctx = canvas.getContext('2d');
             const mapImage = document.getElementById('mapImage');
 
             function resizeCanvas() {
-                canvas.width = mapImage.clientWidth;
-                canvas.height = mapImage.clientHeight;
+                canvas.width = mapImage.naturalWidth || mapImage.clientWidth;
+                canvas.height = mapImage.naturalHeight || mapImage.clientHeight;
+
+                // Forçar tamanho visual igual à imagem
+                canvas.style.width = mapImage.clientWidth + 'px';
+                canvas.style.height = mapImage.clientHeight + 'px';
+
                 drawFlashlight();
             }
 
-            // Sync canvas size with image
-            if (mapImage.complete) {
+            if (mapImage.complete && mapImage.naturalWidth > 0) {
                 resizeCanvas();
             } else {
                 mapImage.onload = resizeCanvas;
             }
 
-            window.addEventListener('resize', resizeCanvas);
+            // Observer para detectar mudança de tamanho quando troca de mapa
+            const resizeObserver = new ResizeObserver(() => {
+                resizeCanvas();
+            });
+            resizeObserver.observe(mapImage);
 
-            // Start animation loop
             if (!flashlightActive) {
                 flashlightActive = true;
                 requestAnimationFrame(flashlightLoop);
@@ -2511,7 +2516,7 @@
         }
 
         function flashlightLoop() {
-            if ((isBlackoutActive || !isLightsOn) && flashlightActive) {
+            if (isBlackoutActive && flashlightActive) { // apenas blackout
                 drawFlashlight();
                 requestAnimationFrame(flashlightLoop);
             } else {
@@ -2541,14 +2546,14 @@
             const ctx = canvas.getContext('2d');
 
             // Se o ambiente não estiver escuro, limpa e sai
-            if (!isBlackoutActive && isLightsOn) {
+            if (!isBlackoutActive) { // apenas blackout controla o canvas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 return;
             }
 
             // 1. Limpar e preencher com escuridão total
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+
             // Ajustar intensidade baseado no modo
             const darknessIntensity = isBlackoutActive ? 0.98 : 0.85;
             ctx.fillStyle = `rgba(0, 0, 5, ${darknessIntensity})`;
@@ -2567,9 +2572,12 @@
                 ctx.globalCompositeOperation = 'destination-out';
 
                 // Desenhar o cone com gradiente radial para suavizar
-                const gradient = ctx.createRadialGradient(x, y, 0, x, y, flashlightState.radius);
+                const dynamicRadius = Math.min(canvas.width, canvas.height) * 0.35;
+                const gradient = ctx.createRadialGradient(x, y, 0, x, y, dynamicRadius);
                 gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-                gradient.addColorStop(0.95, 'rgba(255, 255, 255, 0.7)');
+                gradient.addColorStop(0.4, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.75, 'rgba(255, 255, 255, 0.9)');
+                gradient.addColorStop(0.92, 'rgba(255, 255, 255, 0.5)');
                 gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
                 ctx.fillStyle = gradient;
