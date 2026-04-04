@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SISTEMA DE MONITORAMENTO - UNIDADE BUNKER</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -115,6 +116,77 @@
     <div class="tooltip" id="tooltip"></div>
 
     <script src="script.js"></script>
+    <!-- TERMINAL MINIGAME MODAL -->
+    <div class="terminal-overlay" id="terminalMinigame">
+        <div class="terminal-window">
+            <div class="terminal-header">
+                <span class="terminal-title">PROTOCOLO JERUSALÉM v4.0</span>
+                <button class="terminal-close" onclick="closeTerminalMinigame()">✕ SAIR</button>
+            </div>
+            <div class="terminal-body" id="terminalRoot">
+                <!-- MENU PRINCIPAL -->
+                <div id="terminalScreenMenu" class="terminal-view active">
+                    <div class="terminal-screen mini">
+                        <div class="terminal-output">SISTEMA OPERACIONAL JUNIPER</div>
+                        <div class="terminal-status">AGUARDANDO SELEÇÃO DE PROTOCOLO</div>
+                        <div class="terminal-scanlines"></div>
+                    </div>
+                    <div class="terminal-menu-options">
+                        <button class="terminal-btn" onclick="switchTerminalScreen('CHALLENGE')">
+                            <span class="btn-prompt">></span> LIGAR LUZES (EMERGÊNCIA)
+                        </button>
+                        <button class="terminal-btn" onclick="switchTerminalScreen('LOGIN')">
+                            <span class="btn-prompt">></span> LOGIN DE SEGURANÇA
+                        </button>
+                        <button class="terminal-btn" onclick="closeTerminalMinigame()">
+                            <span class="btn-prompt">></span> ENCERRAR SESSÃO (ROOT)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TELA DE LOGIN -->
+                <div id="terminalScreenLogin" class="terminal-view">
+                    <div class="terminal-screen mini">
+                        <div class="terminal-output">AUTENTICAÇÃO REQUERIDA</div>
+                        <div class="terminal-status" id="loginStatus">INSIRA AS CREDENCIAIS DE ACESSO</div>
+                        <div class="terminal-scanlines"></div>
+                    </div>
+                    <div class="terminal-login-form">
+                        <input type="text" id="terminalLoginInput" class="terminal-input" placeholder="USUÁRIO..." autofocus>
+                        <button class="terminal-btn small" onclick="handleTerminalLogin()">ENTRAR</button>
+                        <button class="terminal-link" onclick="switchTerminalScreen('MENU')">VOLTAR AO MENU</button>
+                    </div>
+                </div>
+
+                <!-- DESAFIO DE LUZES (SEQUÊNCIA) -->
+                <div id="terminalScreenChallenge" class="terminal-view">
+                    <div class="terminal-screen">
+                        <div class="terminal-output" id="terminalOutput">INICIANDO SEQUÊNCIA...</div>
+                        <div class="terminal-sequence" id="terminalSequence">_ _ _ _ _</div>
+                        <div class="terminal-status" id="terminalStatus">MEMORIZE OS NÚMEROS</div>
+                        <div class="terminal-scanlines"></div>
+                    </div>
+                    <div class="terminal-keypad" id="terminalKeypad">
+                        <!-- Gerado via JS -->
+                    </div>
+                    <button class="terminal-link" onclick="switchTerminalScreen('MENU')">ABORTAR PROTOCOLO</button>
+                </div>
+
+                <!-- PAINEL DE CÂMERAS (GERAL) -->
+                <div id="terminalScreenCameras" class="terminal-view">
+                    <div class="terminal-screen-wide">
+                        <div class="terminal-output">SISTEMA OMEGA - STATUS GERAL DAS CÂMERAS</div>
+                        <div id="cameraStatusGrid" class="camera-status-grid">
+                            <!-- Gerado via JS -->
+                        </div>
+                        <div class="terminal-scanlines"></div>
+                    </div>
+                    <button class="terminal-btn small" onclick="switchTerminalScreen('MENU')">VOLTAR AO MENU</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- FILTROS SVG PARA EFEITOS CRT/CCTV -->
     <svg style="display:none">
         <filter id="noiseFilter">

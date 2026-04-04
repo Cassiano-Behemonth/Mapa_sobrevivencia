@@ -20,7 +20,16 @@ const mapHierarchy = {
         imgExt: '.png',
         hasDayNight: true, // Sistema de Luzes (E)
         icon: '🚪',
-        description: 'Ponto de acesso principal ao complexo subterrâneo.'
+        description: 'Ponto de acesso principal ao complexo subterrâneo.',
+        hotspots: [
+            {
+                id: 'terminal_pc',
+                title: '💻 Acessar Terminal de Segurança',
+                position: { top: '44%', left: '74%' }, // Movido levemente para cima (48->44) e esquerda (78->74)
+                action: 'openTerminalMinigame',
+                isSecret: true // Tornando-o menos visível
+            }
+        ]
     },
     setor_2: {
         id: 'setor_2',
@@ -115,6 +124,11 @@ let flashlightState = {
     intensity: 0.98, // Escuridão do overlay
     radius: 400 // Raio original restaurado
 };
+
+// Minigame State
+let terminalSequence = [];
+let userSequence = [];
+let terminalActive = false;
 
 // ========================================================================
 // FUNÇÕES DE NAVEGAÇÃO
@@ -245,7 +259,14 @@ function loadLocation(locationId) {
     // Clear and update hotspots
     clearHotspots();
     if (locationData.hotspots) {
-        createHotspots(locationData.hotspots);
+        // Filtrar hotspots baseados em condições (ex: terminal só aparece no escuro)
+        const visibleHotspots = locationData.hotspots.filter(h => {
+            if (h.id === 'terminal_pc') {
+                return !isLightsOn || isBlackoutActive;
+            }
+            return true;
+        });
+        createHotspots(visibleHotspots);
     }
 
     // Adicionar hotspot secreto se estiver no B3 da montanha
@@ -432,11 +453,9 @@ function createHotspots(hotspots) {
             e.stopPropagation();
             hideHotspotTooltip();
 
-            // Check if it's a point of interest
-            const targetLocation = mapHierarchy[hotspot.id];
-            if (targetLocation && targetLocation.isPointOfInterest) {
-                // Show description instead of navigating
-                alert(`🎹 ${targetLocation.name}\n\n${targetLocation.description}`);
+            // Check if it's a function call
+            if (hotspot.action && typeof window[hotspot.action] === 'function') {
+                window[hotspot.action]();
             } else {
                 navigateToLocation(hotspot.id);
             }
@@ -573,8 +592,8 @@ document.addEventListener('keydown', (e) => {
     // ATALHOS DE NAVEGAÇÃO ENTRE MAPAS
     // ============================================================
 
-    // Apenas quando NÃO está digitando
-    if (!e.target.matches('input, textarea')) {
+    // Apenas quando NÃO está digitando E o terminal NÃO está ativo
+    if (!e.target.matches('input, textarea') && !terminalActive) {
 
         // Tecla 1 - Setor 1
         if (e.key === '1') {
@@ -1024,7 +1043,18 @@ function setupMultiSelection() {
             if (placingCharacter) {
                 placingCharacter = null;
                 document.getElementById('mapContainer').classList.remove('placing-character');
+            }
+            // Fechar terminal se estiver ativo
+            if (terminalActive) {
+                closeTerminalMinigame();
+            }
+        }
 
+        // Suporte para teclado no minijogo do terminal
+        if (terminalActive && !e.target.matches('input, textarea')) {
+            if (e.key >= '0' && e.key <= '9') {
+                e.preventDefault();
+                handleKeypadInput(parseInt(e.key), null); // null pois não temos o elemento do botão
             }
         }
 
@@ -1736,4 +1766,225 @@ function toggleCctvMode() {
     if (noise) noise.style.display = cctvEnabled ? 'block' : 'none';
     if (scanlines) scanlines.style.display = cctvEnabled ? 'block' : 'none';
     if (camera) camera.style.display = cctvEnabled ? 'flex' : 'none';
+}
+
+// ========================================================================
+// TERMINAL LOGIC - PROTOCOLO JERUSALÉM
+// ========================================================================
+
+function openTerminalMinigame() {
+    terminalActive = true;
+    const modal = document.getElementById('terminalMinigame');
+    modal.style.display = 'flex';
+    
+    // Iniciar no menu principal
+    switchTerminalScreen('MENU');
+}
+
+/**
+ * Troca entre as visualizações do terminal
+ * @param {string} screenKey - MENU, LOGIN, CHALLENGE, CAMERAS
+ */
+function switchTerminalScreen(screenKey) {
+    // Esconder todas as views
+    document.querySelectorAll('.terminal-view').forEach(view => {
+        view.classList.remove('active');
+    });
+
+    const targetId = `terminalScreen${screenKey.charAt(0) + screenKey.slice(1).toLowerCase()}`;
+    const targetView = document.getElementById(targetId);
+    
+    if (targetView) {
+        targetView.classList.add('active');
+        
+        // Inicializações específicas por tela
+        if (screenKey === 'CHALLENGE') {
+            startLightsChallenge();
+        } else if (screenKey === 'LOGIN') {
+            const input = document.getElementById('terminalLoginInput');
+            input.value = '';
+            input.focus();
+            document.getElementById('loginStatus').textContent = 'INSIRA AS CREDENCIAIS DE ACESSO';
+            document.getElementById('loginStatus').className = 'terminal-status';
+        } else if (screenKey === 'CAMERAS') {
+            renderTerminalCameras();
+        }
+    }
+}
+
+// --- LOGIN SYSTEM ---
+function handleTerminalLogin() {
+    const input = document.getElementById('terminalLoginInput');
+    const status = document.getElementById('loginStatus');
+    const val = input.value.trim().toLowerCase();
+
+    if (val === 'kain') {
+        status.textContent = 'ACESSO CONCEDIDO. BEM-VINDO, KAIN.';
+        status.className = 'terminal-status success';
+        setTimeout(() => {
+            switchTerminalScreen('CAMERAS');
+        }, 1000);
+    } else {
+        status.textContent = 'LOGIN INVÁLIDO. TENTATIVA REGISTRADA.';
+        status.className = 'terminal-status error';
+        input.value = '';
+        input.focus();
+    }
+}
+
+// Adicionar suporte a Enter no login
+document.addEventListener('keydown', (e) => {
+    if (terminalActive && document.getElementById('terminalScreenLogin').classList.contains('active')) {
+        if (e.key === 'Enter') {
+            handleTerminalLogin();
+        }
+    }
+});
+
+// --- CAMERA STATUS DASHBOARD ---
+function renderTerminalCameras() {
+    const grid = document.getElementById('cameraStatusGrid');
+    grid.innerHTML = '';
+
+    Object.keys(mapHierarchy).forEach(key => {
+        const sector = mapHierarchy[key];
+        const item = document.createElement('div');
+        item.className = 'camera-item';
+        
+        // Simulando status: Geral sempre online, outros podem variar ou ser offline se luz apagar? 
+        // Vamos manter simples: Setor 1-6 online, mas sinal varia.
+        const isOnline = true; 
+        const signal = Math.floor(Math.random() * 30) + 70; // 70-99%
+
+        item.innerHTML = `
+            <div class="cam-info">
+                <span class="cam-icon">${sector.icon}</span>
+                <span class="cam-name">${sector.name}</span>
+            </div>
+            <div class="cam-meta">
+                <span class="cam-signal">${signal}% SIG</span>
+                <span class="status-tag online">LIVE</span>
+            </div>
+        `;
+        grid.appendChild(item);
+    });
+}
+
+// --- LIGHTS CHALLENGE (REFACTORED) ---
+function startLightsChallenge() {
+    userSequence = [];
+    // Gerar sequência de 5 números aleatórios
+    terminalSequence = Array.from({length: 5}, () => Math.floor(Math.random() * 10));
+    
+    const sequenceDisplay = document.getElementById('terminalSequence');
+    const status = document.getElementById('terminalStatus');
+    const output = document.getElementById('terminalOutput');
+    
+    // Mostrar a sequência inicialmente para o jogador memorizar
+    sequenceDisplay.textContent = terminalSequence.join(' ');
+    output.textContent = 'PROTOCOLO DE REINICIALIZAÇÃO';
+    status.textContent = 'MEMORIZE EM 5 SEGUNDOS...';
+    status.className = 'terminal-status success';
+    
+    // Desabilitar o teclado durante a memorização
+    const keypad = document.getElementById('terminalKeypad');
+    keypad.style.pointerEvents = 'none';
+    keypad.style.opacity = '0.5';
+
+    setTimeout(() => {
+        // Verificar se ainda estamos na tela de desafio
+        const challengeScreen = document.getElementById('terminalScreenChallenge');
+        if (!terminalActive || !challengeScreen.classList.contains('active')) return;
+        
+        sequenceDisplay.textContent = '_ _ _ _ _';
+        output.textContent = 'AGUARDANDO SEQUÊNCIA';
+        status.textContent = 'INSIRA O CÓDIGO AGORA';
+        status.className = 'terminal-status';
+        
+        keypad.style.pointerEvents = 'auto';
+        keypad.style.opacity = '1';
+    }, 5000);
+    
+    renderTerminalKeypad();
+}
+
+function renderTerminalKeypad() {
+    const keypad = document.getElementById('terminalKeypad');
+    keypad.innerHTML = '';
+    
+    const nums = [1,2,3,4,5,6,7,8,9,0];
+    nums.forEach(n => {
+        const btn = document.createElement('button');
+        btn.className = 'key-btn';
+        btn.textContent = n;
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            handleKeypadInput(n, btn);
+        };
+        keypad.appendChild(btn);
+    });
+}
+
+function handleKeypadInput(num, btn) {
+    if (!terminalActive) return;
+    
+    const nextExpected = terminalSequence[userSequence.length];
+    
+    if (!btn) {
+        const buttons = document.querySelectorAll('.key-btn');
+        btn = Array.from(buttons).find(b => parseInt(b.textContent) === num);
+    }
+    
+    if (num === nextExpected) {
+        userSequence.push(num);
+        btn.classList.add('correct');
+        
+        const display = terminalSequence.map((n, i) => i < userSequence.length ? n : '_').join(' ');
+        document.getElementById('terminalSequence').textContent = display;
+        
+        if (userSequence.length === terminalSequence.length) {
+            handleTerminalSuccess();
+        }
+    } else {
+        handleTerminalError(btn);
+    }
+}
+
+function handleTerminalSuccess() {
+    const output = document.getElementById('terminalOutput');
+    const status = document.getElementById('terminalStatus');
+    
+    output.textContent = 'SEQUÊNCIA CORRETA';
+    status.textContent = 'RESTAURANDO ENERGIA...';
+    status.className = 'terminal-status success';
+    
+    setTimeout(() => {
+        if (!isLightsOn) {
+            toggleLights();
+        }
+        switchTerminalScreen('MENU');
+    }, 1500);
+}
+
+function handleTerminalError(btn) {
+    userSequence = [];
+    const status = document.getElementById('terminalStatus');
+    
+    status.textContent = 'ERRO NA SEQUÊNCIA';
+    status.className = 'terminal-status error';
+    
+    if (btn) btn.classList.add('wrong');
+    
+    setTimeout(() => {
+        if (btn) btn.classList.remove('wrong');
+        document.querySelectorAll('.key-btn').forEach(b => b.classList.remove('correct'));
+        document.getElementById('terminalSequence').textContent = '_ _ _ _ _';
+        status.textContent = 'TENTE NOVAMENTE';
+        status.className = 'terminal-status';
+    }, 600);
+}
+
+function closeTerminalMinigame() {
+    terminalActive = false;
+    document.getElementById('terminalMinigame').style.display = 'none';
 }
