@@ -5,12 +5,13 @@
 const mapHierarchy = {
     general: {
         id: 'general',
-        name: 'Mapa Geral do Complexo',
+        name: 'SALA DE MONITORES - CENTRAL OMEGA',
         imgBase: 'bunker_geral',
         imgExt: '.png',
         hasDayNight: false,
+        isMonitorRoom: true,
         icon: '📟',
-        description: 'Visão técnica global de todos os setores monitorados.'
+        description: 'Central de controle com acesso em tempo real a todas as câmeras do complexo.'
     },
     setor_1: {
         id: 'setor_1',
@@ -200,22 +201,36 @@ function loadLocation(locationId) {
     const locationData = getLocationData(locationId);
     if (!locationData) return;
 
-    // Update map image
+    // Update map image or render monitor room
     const mapImage = document.getElementById('mapImage');
-
-    // Verificar se o mapa tem versão luz ligada/desligada
-    if (locationData.hasDayNight === false) {
-        // Mapa sem versão de luz - usar só a base
-        mapImage.src = locationData.imgBase + locationData.imgExt;
+    const mapContainer = document.getElementById('mapContainer');
+    
+    if (locationData.isMonitorRoom) {
+        mapImage.style.display = 'none';
+        mapContainer.classList.add('monitor-view');
+        renderMonitorRoom();
     } else {
-        // Mapa com versão de luz (ligado/desligado)
-        const suffix = isLightsOn ? '_ligado' : '_desligado';
-        mapImage.src = locationData.imgBase + suffix + locationData.imgExt;
-    }
+        mapImage.style.display = 'block';
+        mapContainer.classList.remove('monitor-view');
+        
+        // Hide monitor room if it exists
+        const monitorRoom = document.getElementById('monitorRoom');
+        if (monitorRoom) monitorRoom.style.display = 'none';
+        
+        // Verificar se o mapa tem versão luz ligada/desligada
+        if (locationData.hasDayNight === false) {
+            // Mapa sem versão de luz - usar só a base
+            mapImage.src = locationData.imgBase + locationData.imgExt;
+        } else {
+            // Mapa com versão de luz (ligado/desligado)
+            const suffix = isLightsOn ? '_ligado' : '_desligado';
+            mapImage.src = locationData.imgBase + suffix + locationData.imgExt;
+        }
 
-    mapImage.onerror = function () {
-        this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect fill="%230a0c0d" width="800" height="600"/><text x="50%" y="50%" font-family="Courier New" font-size="20" fill="%2322c55e" text-anchor="middle">ERRO DE CONEXÃO: SETOR ' + locationId.toUpperCase() + ' NÃO ENCONTRADO</text></svg>';
-    };
+        mapImage.onerror = function () {
+            this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect fill="%230a0c0d" width="800" height="600"/><text x="50%" y="50%" font-family="Courier New" font-size="20" fill="%2322c55e" text-anchor="middle">ERRO DE CONEXÃO: SETOR ' + locationId.toUpperCase() + ' NÃO ENCONTRADO</text></svg>';
+        };
+    }
 
     // Update title
     document.getElementById('currentMapTitle').textContent = locationData.icon + " " + locationData.name;
@@ -255,7 +270,58 @@ function loadLocation(locationId) {
     }
 
     // Load characters for this location
-    loadCharactersForLocation(locationId);
+    if (!locationData.isMonitorRoom) {
+        loadCharactersForLocation(locationId);
+    } else {
+        // Clear characters in monitor room
+        document.querySelectorAll('.character-marker').forEach(m => m.remove());
+        document.querySelectorAll('.token-marker').forEach(m => m.remove());
+    }
+}
+
+function renderMonitorRoom() {
+    const mapWrapper = document.getElementById('mapWrapper');
+    
+    // Clear elements except image, scanlines etc (the image is hidden anyway)
+    // We'll add the monitor room div
+    let monitorRoom = document.getElementById('monitorRoom');
+    if (!monitorRoom) {
+        monitorRoom = document.createElement('div');
+        monitorRoom.id = 'monitorRoom';
+        monitorRoom.className = 'monitor-room';
+        mapWrapper.appendChild(monitorRoom);
+    }
+    
+    monitorRoom.style.display = 'grid';
+    monitorRoom.innerHTML = '';
+    
+    // Show monitors for sectors 1 to 6
+    const sectors = ['setor_1', 'setor_2', 'setor_3', 'setor_4', 'setor_5', 'setor_6'];
+    
+    sectors.forEach(sectorId => {
+        const data = mapHierarchy[sectorId];
+        if (!data) return;
+        
+        const monitor = document.createElement('div');
+        monitor.className = 'monitor';
+        if (isBlackoutActive) monitor.classList.add('no-signal');
+        monitor.onclick = () => navigateToLocation(sectorId);
+        
+        const imgSrc = data.imgBase + (data.hasDayNight ? (isLightsOn ? '_ligado' : '_desligado') : '') + data.imgExt;
+        
+        const statusText = isBlackoutActive ? 'NO SIGNAL' : 'LIVE';
+        const screenStyle = isBlackoutActive ? '' : `style="background-image: url('${imgSrc}'), url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23111%22/><text x=%2250%%22 y=%2250%%22 font-family=%22monospace%22 font-size=%2210%22 fill=%22%2322c55e%22 text-anchor=%22middle%22>LOST SIGNAL</text></svg>');"`;
+        
+        monitor.innerHTML = `
+            <div class="monitor-screen" ${screenStyle}></div>
+            <div class="monitor-glass"></div>
+            <div class="monitor-flicker"></div>
+            <div class="monitor-status ${isBlackoutActive ? 'offline' : 'live'}">${statusText}</div>
+            <div class="monitor-label">${data.icon} ${data.name}</div>
+        `;
+        
+        monitorRoom.appendChild(monitor);
+    });
 }
 
 function updateBreadcrumb() {
@@ -1353,17 +1419,10 @@ function saveNavigationState() {
 }
 
 function loadNavigationState() {
-    const saved = localStorage.getItem('rpgNavigationPath');
-    if (saved) {
-        try {
-            navigationPath = JSON.parse(saved);
-            if (navigationPath.length === 0) {
-                navigationPath = ['general'];
-            }
-        } catch (e) {
-            navigationPath = ['general'];
-        }
-    }
+    // Sempre iniciar no Mapa Geral (Sala de Monitores) ao recarregar a página
+    // conforme solicitação do usuário.
+    navigationPath = ['general'];
+    saveNavigationState();
 }
 
 function saveAllCharactersToStorage() {
@@ -1617,13 +1676,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllCharactersFromStorage();
     loadNavigationState();
 
-    const savedMode = localStorage.getItem('rpgDayNightMode') || 'noite';
-    isDayMode = (savedMode === 'dia');
-    document.getElementById('dayNightToggle').checked = isDayMode;
-
-    const savedTide = localStorage.getItem('rpgTideMode') || 'alta';
-    isTideLow = (savedTide === 'baixa');
-    document.getElementById('tideToggle').checked = isTideLow;
+    // Load saved environmental states
+    const savedLights = localStorage.getItem("rpgLightsMode") || "ligado";
+    isLightsOn = (savedLights === "ligado");
+    
+    const savedBlackout = localStorage.getItem("rpgBlackoutMode") || "off";
+    isBlackoutActive = (savedBlackout === "on");
 
     // Load current location
     const locationId = getCurrentLocation();
