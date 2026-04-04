@@ -24,21 +24,21 @@ const mapHierarchy = {
     },
     setor_2: {
         id: 'setor_2',
-        name: 'Setor 02 - Suporte de Vida',
+        name: 'Garagem',
         imgBase: 'setor2',
         imgExt: '.png',
         hasDayNight: true,
-        icon: '⚙️',
-        description: 'Sistemas críticos de oxigênio e filtragem de água.'
+        icon: '🏎️',
+        description: 'Espaço para manutenção e armazenamento de veículos.'
     },
     setor_3: {
         id: 'setor_3',
-        name: 'Setor 03 - Laboratório Tecnológico',
+        name: 'Enfermaria',
         imgBase: 'setor3',
         imgExt: '.png',
         hasDayNight: true,
-        icon: '🧪',
-        description: 'Área de pesquisa e desenvolvimento de alta segurança.'
+        icon: '🏥',
+        description: 'Unidade médica para tratamentos de emergência.'
     },
     setor_4: {
         id: 'setor_4',
