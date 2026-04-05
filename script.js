@@ -25,9 +25,10 @@ const mapHierarchy = {
             {
                 id: 'terminal_pc',
                 title: '💻 Acessar Terminal de Segurança',
-                position: { top: '44%', left: '74%' }, // Movido levemente para cima (48->44) e esquerda (78->74)
+                position: { top: '44%', left: '74%' },
                 action: 'openTerminalMinigame',
-                isSecret: true // Tornando-o menos visível
+                isSecret: true,
+                hint: 'o primeiro a m######'
             }
         ]
     },
@@ -51,11 +52,12 @@ const mapHierarchy = {
         hotspots: [
             {
                 id: 'terminal_setor3',
-                title: '💻 Acessar Terminal Auxiliar', // Pista removida
+                title: '💻 Acessar Terminal Auxiliar',
                 position: { top: '16%', right: '24%' },
                 action: 'openTerminalSetor3',
-                dayOnly: true, // Só aparece com luz acesa
-                isSecret: true // Agora escondido como o primeiro
+                dayOnly: true,
+                isSecret: true,
+                hint: '#s #lh#s d# cr#ad#r'
             },
             {
                 id: 'maintenance_panel',
@@ -70,12 +72,22 @@ const mapHierarchy = {
     },
     setor_4: {
         id: 'setor_4',
-        name: 'Setor 04 - Arsenal e Defesa',
+        name: 'Laboratório',
         imgBase: 'setor4',
         imgExt: '.png',
         hasDayNight: true,
-        icon: '⚔️',
-        description: 'Depósito blindado de equipamentos táticos.'
+        icon: '🧪',
+        description: 'Laboratório de pesquisa biológica. Classificado: Ultrassecreto.',
+        hotspots: [
+            {
+                id: 'terminal_setor4',
+                title: '💻 Acessar Terminal do Laboratório',
+                position: { top: '36%', left: '64%' },
+                action: 'openTerminalSetor4',
+                isSecret: true,
+                hint: 'traidor=30'
+            }
+        ]
     },
     setor_5: {
         id: 'setor_5',
@@ -155,8 +167,10 @@ let userSequence = [];
 let terminalActive = false;
 let isTerminalAuthorizedKain = localStorage.getItem('terminalAuthorizedMalak_kain') === 'true';
 let isTerminalAuthorizedAdam = localStorage.getItem('terminalAuthorizedMalak_adam') === 'true';
+let isTerminalAuthorizedJudas = localStorage.getItem('terminalAuthorizedMalak_judas') === 'true';
 let isTerminalBlockedKain = localStorage.getItem('terminalBlockedMalak_kain') === 'true';
 let isTerminalBlockedAdam = localStorage.getItem('terminalBlockedMalak_adam') === 'true';
+let isTerminalBlockedJudas = localStorage.getItem('terminalBlockedMalak_judas') === 'true';
 let isSector3EnergyRestored = localStorage.getItem('sector3EnergyRestored') === 'true';
 
 let currentTerminalContext = 'GENERAL'; // 'GENERAL' (kain) ou 'MEDICAL' (adam)
@@ -173,7 +187,7 @@ function flickerFlashlight() {
     // Sequência de piscadas rápidas
     const flickerSteps = [0.4, 0.98, 0.3, 0.98, 0.5, 0.98];
     let step = 0;
-    
+
     const interval = setInterval(() => {
         flashlightState.intensity = flickerSteps[step];
         drawFlashlight(); // Redesenhar o canvas
@@ -274,7 +288,7 @@ function loadLocation(locationId) {
     // Update map image or render monitor room
     const mapImage = document.getElementById('mapImage');
     const mapContainer = document.getElementById('mapContainer');
-    
+
     if (locationData.isMonitorRoom) {
         mapImage.style.display = 'none';
         mapContainer.classList.add('monitor-view');
@@ -282,11 +296,11 @@ function loadLocation(locationId) {
     } else {
         mapImage.style.display = 'block';
         mapContainer.classList.remove('monitor-view');
-        
+
         // Hide monitor room if it exists
         const monitorRoom = document.getElementById('monitorRoom');
         if (monitorRoom) monitorRoom.style.display = 'none';
-        
+
         // Verificar se o mapa tem versão luz ligada/desligada
         if (locationData.hasDayNight === false) {
             // Mapa sem versão de luz - usar só a base
@@ -363,7 +377,7 @@ function loadLocation(locationId) {
 
 function renderMonitorRoom() {
     const mapWrapper = document.getElementById('mapWrapper');
-    
+
     // Clear elements except image, scanlines etc (the image is hidden anyway)
     // We'll add the monitor room div
     let monitorRoom = document.getElementById('monitorRoom');
@@ -373,13 +387,13 @@ function renderMonitorRoom() {
         monitorRoom.className = 'monitor-room';
         mapWrapper.appendChild(monitorRoom);
     }
-    
+
     monitorRoom.style.display = 'grid';
     monitorRoom.innerHTML = '';
-    
+
     // Show monitors for sectors 1 to 6
     const sectors = ['setor_1', 'setor_2', 'setor_3', 'setor_4', 'setor_5', 'setor_6'];
-    
+
     sectors.forEach(sectorId => {
         const data = mapHierarchy[sectorId];
         if (!data) return;
@@ -388,12 +402,12 @@ function renderMonitorRoom() {
         monitor.id = 'monitor-' + sectorId;
         if (isBlackoutActive) monitor.classList.add('no-signal');
         monitor.onclick = () => navigateToLocation(sectorId);
-        
+
         const imgSrc = data.imgBase + (data.hasDayNight ? (isLightsOn ? '_ligado' : '_desligado') : '') + data.imgExt;
-        
+
         const statusText = isBlackoutActive ? 'NO SIGNAL' : 'LIVE';
         const screenStyle = isBlackoutActive ? '' : `style="background-image: url('${imgSrc}'), url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23111%22/><text x=%2250%%22 y=%2250%%22 font-family=%22monospace%22 font-size=%2210%22 fill=%22%2322c55e%22 text-anchor=%22middle%22>LOST SIGNAL</text></svg>');"`;
-        
+
         monitor.innerHTML = `
             <div class="monitor-screen" ${screenStyle}></div>
             <div class="monitor-glass"></div>
@@ -401,7 +415,7 @@ function renderMonitorRoom() {
             <div class="monitor-status ${isBlackoutActive ? 'offline' : 'live'}">${statusText}</div>
             <div class="monitor-label">${data.icon} ${data.name}</div>
         `;
-        
+
         monitorRoom.appendChild(monitor);
     });
 }
@@ -778,7 +792,7 @@ function spawnMonster(x, y) {
         y: y || lastMouseY,
         rotation: 0
     };
-    
+
     monsters.push(monster);
     renderMonster(monster);
     saveCurrentLocationCharacters(); // Salva estado atual incorporando monstros
@@ -793,7 +807,7 @@ function renderMonster(monster) {
     el.style.left = monster.x + '%';
     el.style.top = monster.y + '%';
     el.style.transform = `translate(-50%, -50%) rotate(${monster.rotation || 0}deg) scaleX(${monster.flipped ? -1 : 1})`;
-    
+
     const currentLocationId = navigationPath[navigationPath.length - 1];
     if (currentLocationId === 'general') {
         // Na sala de monitores, o monstro físico gigante é escondido para a tela não virar um carnaval.
@@ -807,21 +821,21 @@ function renderMonster(monster) {
             <div class="monster-pulse-glow"></div>
         </div>
     `;
-    
+
     // Prevenir drag nativo da imagem HTML
     el.addEventListener('dragstart', (e) => e.preventDefault());
-    
+
     // Transformar o monstro em arrastável e interativo
     let isDragging = false;
-    
+
     el.addEventListener('mousedown', (e) => {
-        if(e.button !== 0) return;
+        if (e.button !== 0) return;
         e.stopPropagation(); // Impede o drag da tela principal
         isDragging = true;
     });
-    
+
     document.addEventListener('mousemove', (e) => {
-        if(isDragging) {
+        if (isDragging) {
             const rect = mapImage.getBoundingClientRect();
             monster.x = ((e.clientX - rect.left) / rect.width) * 100;
             monster.y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -832,7 +846,7 @@ function renderMonster(monster) {
     });
 
     document.addEventListener('mouseup', () => {
-        if(isDragging) {
+        if (isDragging) {
             isDragging = false;
             saveCurrentLocationCharacters();
         }
@@ -845,7 +859,7 @@ function renderMonster(monster) {
         monster.rotation = (monster.rotation || 0) + delta;
         el.style.transform = `translate(-50%, -50%) rotate(${monster.rotation}deg) scaleX(${monster.flipped ? -1 : 1})`;
         saveCurrentLocationCharacters();
-        if(!flashlightActive) drawFlashlight(); 
+        if (!flashlightActive) drawFlashlight();
     });
 
     // Rastrear cursor para atalhos do teclado (Delete / Flip)
@@ -894,7 +908,7 @@ function loadCharactersForLocation(locationId) {
 
     // Load monsters - mas NÃO renderizar no Mapa 0 (Sala de Monitores)
     // Monstros dos setores são rastreados via radar nos monitores, não como sprites
-    if(locationId !== 'general') {
+    if (locationId !== 'general') {
         monsters = monstersByLocation[locationId] || [];
         monsters.forEach(m => renderMonster(m));
     } else {
@@ -1076,20 +1090,20 @@ function setupMultiSelection() {
         const clickedToken = e.target.closest('.token-marker');
 
         cachedMapRect = mapImage.getBoundingClientRect(); // Cache inicial
-        
+
         // Se clicou em um TOKEN
         if (clickedToken && clickedToken.dataset.selected === 'true') {
             // Token selecionado - iniciar drag do grupo (personagens + tokens)
             isDraggingGroup = true;
             isSelecting = false;
             dragGroupStart = { x: e.clientX, y: e.clientY };
-            
+
             // CACHE para performance
             dragGroupElements.characters = Array.from(selectedCharacters).map(id => ({
                 data: characters.find(c => c.id === id),
                 el: document.getElementById(`char-${id}`)
             })).filter(item => item.data && item.el);
-            
+
             dragGroupElements.tokens = Array.from(document.querySelectorAll('.token-marker[data-selected="true"]')).map(el => ({
                 data: tokens.find(t => t.id === parseInt(el.id.replace('token-', ''))),
                 el: el
@@ -1359,7 +1373,7 @@ function moveSelectedCharacters(deltaX, deltaY) {
     dragGroupElements.characters.forEach(item => {
         const char = item.data;
         const marker = item.el;
-        
+
         char.x = Math.max(0, Math.min(100, char.x + deltaX));
         char.y = Math.max(0, Math.min(100, char.y + deltaY));
 
@@ -1371,7 +1385,7 @@ function moveSelectedCharacters(deltaX, deltaY) {
     dragGroupElements.tokens.forEach(item => {
         const token = item.data;
         const tokenEl = item.el;
-        
+
         token.x = Math.max(0, Math.min(100, token.x + deltaX));
         token.y = Math.max(0, Math.min(100, token.y + deltaY));
 
@@ -1761,7 +1775,7 @@ function flashlightLoop() {
             moveSelectedCharacters(dragLatestDelta.x, dragLatestDelta.y);
             dragIsDirty = false;
         }
-        
+
         drawFlashlight();
         requestAnimationFrame(flashlightLoop);
     } else {
@@ -1807,7 +1821,7 @@ function drawFlashlight() {
     if (cycleTime < 2500) {
         // Pisca brutalmente gerando valor aleatório (entre 0.4 e 1.0)
         flickerOpacity = 0.4 + (Math.random() * 0.6);
-        
+
         // As vezes pisca totalmente para 0
         if (Math.random() > 0.8) flickerOpacity = 0;
     }
@@ -1858,19 +1872,19 @@ function drawFlashlight() {
     monsters.forEach(m => {
         const mx = (m.x / 100) * canvas.width;
         const my = (m.y / 100) * canvas.height;
-        
+
         // Efeito de pulso baseado no tempo MAIS LENTO (dividido por 1200)
         const pulse = 1 + 0.15 * Math.sin(Date.now() / 1200);
         const monsterRadius = 180 * pulse;
 
         ctx.save();
         ctx.globalCompositeOperation = 'destination-out';
-        
+
         const gradient = ctx.createRadialGradient(mx, my, 0, mx, my, monsterRadius);
         gradient.addColorStop(0, 'rgba(34, 197, 94, 0.9)'); // Tom verde Penicillium
         gradient.addColorStop(0.3, 'rgba(34, 197, 94, 0.5)');
         gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
-        
+
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(mx, my, monsterRadius, 0, Math.PI * 2);
@@ -1882,7 +1896,7 @@ function drawFlashlight() {
     monsters.forEach(m => {
         const mx = (m.x / 100) * canvas.width;
         const my = (m.y / 100) * canvas.height;
-        
+
         let maxIllumination = 0;
 
         allCasters.forEach(caster => {
@@ -1890,31 +1904,31 @@ function drawFlashlight() {
             const cx = (caster.x / 100) * canvas.width;
             const cy = (caster.y / 100) * canvas.height;
             const dist = Math.hypot(mx - cx, my - cy);
-            
+
             const lightRadius = flashlightState.radius;
             // Se estiver dentro da distância máxima do cone...
             if (dist <= lightRadius) {
                 const dx = mx - cx;
                 const dy = my - cy;
                 const monsterAngle = Math.atan2(dy, dx);
-                
+
                 // O ângulo no canvas (0 graus para cima) precisa subtrair PI/2 para a correta tradução matemática
                 const casterAngle = (caster.rotation || 0) * (Math.PI / 180) - (Math.PI / 2);
-                
+
                 let angleDiff = monsterAngle - casterAngle;
                 // Normaliza entre -PI e PI
                 while (angleDiff <= -Math.PI) angleDiff += Math.PI * 2;
                 while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-                
+
                 const halfWidth = (flashlightState.width / 2) * (Math.PI / 180);
-                
+
                 // Se cair dentro da abertura do cone da lanterna:
                 if (Math.abs(angleDiff) <= halfWidth) {
                     // Revelação gradual: O quão perto ele está do início do cone
                     let intensity = 1.0 - (dist / lightRadius);
                     // Deixa a opacidade preencher mais fácil no começo antes de decair devagar pras bordas
-                    intensity = Math.pow(intensity, 0.4); 
-                    
+                    intensity = Math.pow(intensity, 0.4);
+
                     if (intensity > maxIllumination) maxIllumination = intensity;
                 }
             }
@@ -2059,7 +2073,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load saved environmental states
     const savedLights = localStorage.getItem("rpgLightsMode") || "ligado";
     isLightsOn = (savedLights === "ligado");
-    
+
     const savedBlackout = localStorage.getItem("rpgBlackoutMode") || "off";
     isBlackoutActive = (savedBlackout === "on");
 
@@ -2112,39 +2126,39 @@ setInterval(updateCctvOverlay, 1000);
 // F2 não usa mais radar - apenas estética de câmera.
 function globalRadarLoop() {
     const currentLoc = navigationPath[navigationPath.length - 1];
-    
-    if(currentLoc === 'general') {
-        const sectors = ['setor_1','setor_2','setor_3','setor_4','setor_5','setor_6'];
-        
+
+    if (currentLoc === 'general') {
+        const sectors = ['setor_1', 'setor_2', 'setor_3', 'setor_4', 'setor_5', 'setor_6'];
+
         // Se blackout ativo, câmeras estão sem sinal — limpar todos os pontos
-        if(isBlackoutActive) {
+        if (isBlackoutActive) {
             sectors.forEach(sid => {
                 const mon = document.getElementById('monitor-' + sid);
-                if(mon) mon.querySelectorAll('.cctv-blip').forEach(t => t.remove());
+                if (mon) mon.querySelectorAll('.cctv-blip').forEach(t => t.remove());
             });
             setTimeout(() => requestAnimationFrame(globalRadarLoop), 100);
             return;
         }
-        
+
         sectors.forEach(sid => {
             const mon = document.getElementById('monitor-' + sid);
-            if(!mon) return;
+            if (!mon) return;
             mon.style.position = 'relative';
             mon.style.overflow = 'hidden';
-            
+
             const secMonsters = monstersByLocation[sid] || [];
-            
+
             // Remover trackers já deletados
             mon.querySelectorAll('.cctv-blip.real').forEach(t => {
                 const mId = t.dataset.monsterId;
-                if(!secMonsters.find(m => m.id === mId)) t.remove();
+                if (!secMonsters.find(m => m.id === mId)) t.remove();
             });
-            
+
             // Criar ou atualizar tracker por monstro presente no setor
             secMonsters.forEach(m => {
                 const tid = 'radar-mon-' + sid + '-' + m.id;
                 let tracker = document.getElementById(tid);
-                if(!tracker) {
+                if (!tracker) {
                     tracker = document.createElement('div');
                     tracker.id = tid;
                     tracker.className = 'cctv-blip real';
@@ -2189,10 +2203,10 @@ function openTerminalMinigame() {
     terminalActive = true;
     const modal = document.getElementById('terminalMinigame');
     modal.style.display = 'flex';
-    
+
     // Mostrar opção de ligar luzes no terminal geral
     document.getElementById('terminalBtnLights').style.display = 'block';
-    
+
     switchTerminalScreen('MENU');
 }
 
@@ -2201,10 +2215,22 @@ function openTerminalSetor3() {
     terminalActive = true;
     const modal = document.getElementById('terminalMinigame');
     modal.style.display = 'flex';
-    
+
     // Esconder opção de ligar luzes no terminal do setor 3
     document.getElementById('terminalBtnLights').style.display = 'none';
-    
+
+    switchTerminalScreen('MENU');
+}
+
+function openTerminalSetor4() {
+    currentTerminalContext = 'LAB';
+    terminalActive = true;
+    const modal = document.getElementById('terminalMinigame');
+    modal.style.display = 'flex';
+
+    // Terminal do laboratório não controla luzes
+    document.getElementById('terminalBtnLights').style.display = 'none';
+
     switchTerminalScreen('MENU');
 }
 
@@ -2227,7 +2253,7 @@ function openTimingMinigame() {
  * Troca entre as visualizações do terminal
  * @param {string} screenKey - MENU, LOGIN, CHALLENGE, CAMERAS, TIMING, FILES, FILEVIEW
  */
-function switchTerminalScreen(screenKey) {    
+function switchTerminalScreen(screenKey) {
     if (timingInterval) {
         clearInterval(timingInterval);
         timingInterval = null;
@@ -2239,16 +2265,20 @@ function switchTerminalScreen(screenKey) {
 
     const targetId = `terminalScreen${screenKey.charAt(0) + screenKey.slice(1).toLowerCase()}`;
     const targetView = document.getElementById(targetId);
-    
+
     if (targetView) {
         targetView.classList.add('active');
-        
+
         if (screenKey === 'CHALLENGE') {
             startLightsChallenge();
         } else if (screenKey === 'LOGIN') {
-            const isBlocked = (currentTerminalContext === 'GENERAL') ? isTerminalBlockedKain : isTerminalBlockedAdam;
-            const isAuth = (currentTerminalContext === 'GENERAL') ? isTerminalAuthorizedKain : isTerminalAuthorizedAdam;
-            
+            const isBlocked = currentTerminalContext === 'GENERAL' ? isTerminalBlockedKain
+                : currentTerminalContext === 'LAB' ? isTerminalBlockedJudas
+                    : isTerminalBlockedAdam;
+            const isAuth = currentTerminalContext === 'GENERAL' ? isTerminalAuthorizedKain
+                : currentTerminalContext === 'LAB' ? isTerminalAuthorizedJudas
+                    : isTerminalAuthorizedAdam;
+
             if (isBlocked) {
                 document.getElementById('loginStatus').textContent = 'SISTEMA BLOQUEADO - ACESSO NEGADO';
                 document.getElementById('loginStatus').className = 'terminal-status error';
@@ -2256,7 +2286,8 @@ function switchTerminalScreen(screenKey) {
                 return;
             }
             if (isAuth) {
-                switchTerminalScreen(currentTerminalContext === 'GENERAL' ? 'CAMERAS' : 'MENU'); 
+                // GENERAL vai para a tela de câmeras, os demais para o MENU
+                switchTerminalScreen(currentTerminalContext === 'GENERAL' ? 'CAMERAS' : 'MENU');
                 return;
             }
             const input = document.getElementById('terminalLoginInput');
@@ -2265,6 +2296,21 @@ function switchTerminalScreen(screenKey) {
             input.focus();
             document.getElementById('loginStatus').textContent = `AUTENTICAÇÃO: ${currentTerminalContext}`;
             document.getElementById('loginStatus').className = 'terminal-status';
+            
+            // Exibir dica de senha abaixo do campo de login
+            const hints = {
+                'GENERAL': 'o primeiro a m######',
+                'MEDICAL': '#s #lh#s d# cr#ad#r',
+                'LAB': 'traidor=30'
+            };
+            let hintEl = document.getElementById('loginHint');
+            if (!hintEl) {
+                hintEl = document.createElement('div');
+                hintEl.id = 'loginHint';
+                hintEl.style.cssText = 'margin-top:10px; font-family:monospace; font-size:0.75em; color:rgba(34,197,94,0.5); letter-spacing:2px; text-align:center;';
+                input.parentNode.insertBefore(hintEl, input.nextSibling);
+            }
+            hintEl.textContent = hints[currentTerminalContext] || '';
         } else if (screenKey === 'CAMERAS') {
             renderTerminalCameras();
         } else if (screenKey === 'TIMING') {
@@ -2275,9 +2321,19 @@ function switchTerminalScreen(screenKey) {
         } else if (screenKey === 'FILES') {
             renderTerminalFiles();
         } else if (screenKey === 'MENU') {
-            // Mostrar botão de arquivos se autorizado
-            const isAuth = (currentTerminalContext === 'GENERAL') ? isTerminalAuthorizedKain : isTerminalAuthorizedAdam;
+            // Mostrar botão de arquivos se autorizado (qualquer contexto)
+            const isAuth = currentTerminalContext === 'GENERAL' ? isTerminalAuthorizedKain
+                : currentTerminalContext === 'LAB' ? isTerminalAuthorizedJudas
+                    : isTerminalAuthorizedAdam;
+            // GENERAL mostra status de energia; outros mostram arquivos
             document.getElementById('terminalBtnFiles').style.display = isAuth ? 'block' : 'none';
+            if (currentTerminalContext === 'GENERAL' && isAuth) {
+                document.getElementById('terminalBtnFiles').textContent = '> STATUS DE ENERGIA';
+                document.getElementById('terminalBtnFiles').onclick = () => renderEnergyStatus();
+            } else {
+                document.getElementById('terminalBtnFiles').textContent = '> ARQUIVOS';
+                document.getElementById('terminalBtnFiles').onclick = () => switchTerminalScreen('FILES');
+            }
         }
     }
 }
@@ -2288,30 +2344,34 @@ function handleTerminalLogin() {
     const status = document.getElementById('loginStatus');
     const val = input.value.trim().toLowerCase();
 
-    const expected = (currentTerminalContext === 'GENERAL') ? 'kain' : 'adam';
+    const expected = currentTerminalContext === 'GENERAL' ? 'kain'
+        : currentTerminalContext === 'LAB' ? 'judas'
+            : 'adam';
 
     if (val === expected) {
         if (currentTerminalContext === 'GENERAL') {
             isTerminalAuthorizedKain = true;
             localStorage.setItem('terminalAuthorizedMalak_kain', 'true');
+        } else if (currentTerminalContext === 'LAB') {
+            isTerminalAuthorizedJudas = true;
+            localStorage.setItem('terminalAuthorizedMalak_judas', 'true');
         } else {
             isTerminalAuthorizedAdam = true;
             localStorage.setItem('terminalAuthorizedMalak_adam', 'true');
         }
-        
+
         status.textContent = `ACESSO CONCEDIDO. BEM-VINDO, ${expected.toUpperCase()}.`;
         status.className = 'terminal-status success';
         setTimeout(() => {
-            if (currentTerminalContext === 'GENERAL') {
-                switchTerminalScreen('CAMERAS');
-            } else {
-                switchTerminalScreen('MENU');
-            }
+            switchTerminalScreen(currentTerminalContext === 'GENERAL' ? 'CAMERAS' : 'MENU');
         }, 1000);
     } else {
         if (currentTerminalContext === 'GENERAL') {
             isTerminalBlockedKain = true;
             localStorage.setItem('terminalBlockedMalak_kain', 'true');
+        } else if (currentTerminalContext === 'LAB') {
+            isTerminalBlockedJudas = true;
+            localStorage.setItem('terminalBlockedMalak_judas', 'true');
         } else {
             isTerminalBlockedAdam = true;
             localStorage.setItem('terminalBlockedMalak_adam', 'true');
@@ -2332,6 +2392,48 @@ document.addEventListener('keydown', (e) => {
 });
 
 // --- CAMERA STATUS DASHBOARD ---
+// --- ENERGY STATUS (Terminal GENERAL) ---
+function renderEnergyStatus() {
+    const list = document.getElementById('fileList');
+    list.innerHTML = '';
+
+    const sectors = ['setor_1','setor_2','setor_3','setor_4','setor_5','setor_6'];
+    const title = document.createElement('div');
+    title.style.cssText = 'color:#22c55e; font-family:monospace; font-size:0.8em; margin-bottom:12px; letter-spacing:2px; border-bottom:1px solid rgba(34,197,94,0.3); padding-bottom:8px;';
+    title.textContent = 'STATUS DE ENERGIA — COMPLEXO OMEGA';
+    list.appendChild(title);
+
+    sectors.forEach(sid => {
+        const data = mapHierarchy[sid];
+        if (!data) return;
+
+        const isOffline = isBlackoutActive;
+        const hasLight = isLightsOn;
+
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid rgba(34,197,94,0.1); font-family:monospace; font-size:0.78em;';
+
+        const statusColor = isOffline ? '#ef4444' : (hasLight ? '#22c55e' : '#f59e0b');
+        const statusLabel = isOffline ? 'BLACKOUT' : (hasLight ? 'NOMINAL' : 'REDUZIDA');
+
+        row.innerHTML = `
+            <span style="color:#8ec9a0;">${data.icon} ${data.name}</span>
+            <span style="color:${statusColor}; font-weight:bold;">● ${statusLabel}</span>
+        `;
+        list.appendChild(row);
+    });
+
+    // Botão de voltar
+    const back = document.createElement('button');
+    back.className = 'terminal-btn small';
+    back.style.marginTop = '12px';
+    back.textContent = '< VOLTAR';
+    back.onclick = () => switchTerminalScreen('MENU');
+    list.appendChild(back);
+
+    switchTerminalScreen('FILES');
+}
+
 function renderTerminalCameras() {
     const grid = document.getElementById('cameraStatusGrid');
     grid.innerHTML = '';
@@ -2340,10 +2442,10 @@ function renderTerminalCameras() {
         const sector = mapHierarchy[key];
         const item = document.createElement('div');
         item.className = 'camera-item';
-        
+
         // Simulando status: Geral sempre online, outros podem variar ou ser offline se luz apagar? 
         // Vamos manter simples: Setor 1-6 online, mas sinal varia.
-        const isOnline = true; 
+        const isOnline = true;
         const signal = Math.floor(Math.random() * 30) + 70; // 70-99%
 
         item.innerHTML = `
@@ -2364,18 +2466,18 @@ function renderTerminalCameras() {
 function startLightsChallenge() {
     userSequence = [];
     // Gerar sequência de 5 números aleatórios
-    terminalSequence = Array.from({length: 5}, () => Math.floor(Math.random() * 10));
-    
+    terminalSequence = Array.from({ length: 5 }, () => Math.floor(Math.random() * 10));
+
     const sequenceDisplay = document.getElementById('terminalSequence');
     const status = document.getElementById('terminalStatus');
     const output = document.getElementById('terminalOutput');
-    
+
     // Mostrar a sequência inicialmente para o jogador memorizar
     sequenceDisplay.textContent = terminalSequence.join(' ');
     output.textContent = 'PROTOCOLO DE REINICIALIZAÇÃO';
     status.textContent = 'MEMORIZE EM 5 SEGUNDOS...';
     status.className = 'terminal-status success';
-    
+
     // Desabilitar o teclado durante a memorização
     const keypad = document.getElementById('terminalKeypad');
     keypad.style.pointerEvents = 'none';
@@ -2385,24 +2487,24 @@ function startLightsChallenge() {
         // Verificar se ainda estamos na tela de desafio
         const challengeScreen = document.getElementById('terminalScreenChallenge');
         if (!terminalActive || !challengeScreen.classList.contains('active')) return;
-        
+
         sequenceDisplay.textContent = '_ _ _ _ _';
         output.textContent = 'AGUARDANDO SEQUÊNCIA';
         status.textContent = 'INSIRA O CÓDIGO AGORA';
         status.className = 'terminal-status';
-        
+
         keypad.style.pointerEvents = 'auto';
         keypad.style.opacity = '1';
     }, 5000);
-    
+
     renderTerminalKeypad();
 }
 
 function renderTerminalKeypad() {
     const keypad = document.getElementById('terminalKeypad');
     keypad.innerHTML = '';
-    
-    const nums = [1,2,3,4,5,6,7,8,9,0];
+
+    const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
     nums.forEach(n => {
         const btn = document.createElement('button');
         btn.className = 'key-btn';
@@ -2417,21 +2519,21 @@ function renderTerminalKeypad() {
 
 function handleKeypadInput(num, btn) {
     if (!terminalActive) return;
-    
+
     const nextExpected = terminalSequence[userSequence.length];
-    
+
     if (!btn) {
         const buttons = document.querySelectorAll('.key-btn');
         btn = Array.from(buttons).find(b => parseInt(b.textContent) === num);
     }
-    
+
     if (num === nextExpected) {
         userSequence.push(num);
         btn.classList.add('correct');
-        
+
         const display = terminalSequence.map((n, i) => i < userSequence.length ? n : '_').join(' ');
         document.getElementById('terminalSequence').textContent = display;
-        
+
         if (userSequence.length === terminalSequence.length) {
             handleTerminalSuccess();
         }
@@ -2443,11 +2545,11 @@ function handleKeypadInput(num, btn) {
 function handleTerminalSuccess() {
     const output = document.getElementById('terminalOutput');
     const status = document.getElementById('terminalStatus');
-    
+
     output.textContent = 'SEQUÊNCIA CORRETA';
     status.textContent = 'RESTAURANDO ENERGIA...';
     status.className = 'terminal-status success';
-    
+
     setTimeout(() => {
         if (!isLightsOn) {
             toggleLights();
@@ -2468,7 +2570,7 @@ function startTimingChallenge() {
     // Limpar zonas antigas se for novo nível ou início
     if (currentLevelHits === 0) {
         container.querySelectorAll('.timing-target-zone').forEach(z => z.remove());
-        
+
         // Gerar barras conforme o nível atual sem sobreposição
         const usedPositions = [];
         const zoneWidth = 50;
@@ -2481,7 +2583,7 @@ function startTimingChallenge() {
 
             while (overlapping && attempts < 50) {
                 randomLeft = Math.floor(Math.random() * (300 - zoneWidth));
-                overlapping = usedPositions.some(pos => 
+                overlapping = usedPositions.some(pos =>
                     Math.abs(pos - randomLeft) < (zoneWidth + minGap)
                 );
                 attempts++;
@@ -2495,14 +2597,14 @@ function startTimingChallenge() {
             container.appendChild(zone);
         }
     }
-    
+
     needlePos = 0;
     timingDirection = 1;
     const baseSpeed = 4;
     const speed = baseSpeed + (timingLevel * 1.5);
 
     if (timingInterval) clearInterval(timingInterval);
-    
+
     timingInterval = setInterval(() => {
         needlePos += (speed * timingDirection);
         if (needlePos >= 292) { needlePos = 292; timingDirection = -1; }
@@ -2513,10 +2615,10 @@ function startTimingChallenge() {
 
 function checkTiming() {
     if (!timingInterval) return;
-    
+
     const needleMid = needlePos + 4;
     const zones = Array.from(document.querySelectorAll('.timing-target-zone')).filter(z => z.dataset.hit === "false");
-    
+
     let hitZone = null;
     zones.forEach(zone => {
         const zLeft = parseInt(zone.style.left);
@@ -2524,19 +2626,19 @@ function checkTiming() {
             hitZone = zone;
         }
     });
-    
+
     if (hitZone) {
         // Marcar zona como atingida
         hitZone.dataset.hit = "true";
         hitZone.style.opacity = "0.2";
         hitZone.style.boxShadow = "none";
         hitZone.style.background = "#fff";
-        
+
         currentLevelHits++;
         timingScore++;
-        
+
         const status = document.getElementById('timingStatus');
-        
+
         if (currentLevelHits >= timingLevel) {
             // Nível Concluído
             if (timingLevel >= 3) { // Vitória Final
@@ -2544,11 +2646,11 @@ function checkTiming() {
                 timingInterval = null;
                 status.textContent = 'MANUTENÇÃO CONCLUÍDA. ENERGIA RESTAURADA.';
                 status.className = 'terminal-status success';
-                
+
                 isLightsOn = true;
                 isSector3EnergyRestored = true;
                 localStorage.setItem('sector3EnergyRestored', 'true');
-                
+
                 setTimeout(() => {
                     loadLocation(getCurrentLocation());
                     closeTerminalMinigame();
@@ -2574,11 +2676,11 @@ function checkTiming() {
         timingScore = 0;
         timingLevel = 1;
         currentLevelHits = 0;
-        
+
         const status = document.getElementById('timingStatus');
         status.textContent = 'SINCRONISMO PERDIDO! REINICIANDO SISTEMAS...';
         status.className = 'terminal-status error';
-        
+
         setTimeout(() => {
             startTimingChallenge();
         }, 1500);
@@ -2629,11 +2731,148 @@ O Enxertado rompeu a contenção durante o último blackout. Evidências indicam
     }
 ];
 
+// === ARQUIVOS DO LABORATÓRIO (Contexto: JUDAS / LAB) ===
+const labLore = [
+    {
+        id: 'lab_file1',
+        title: 'AUDIO_LOG-01: Última Mensagem',
+        content: `[TRANSCRIÇÃO AUTOMÁTICA - ARQUIVO DE VOZ]
+[DATA: CORROMPIDA] [ORIGEM: LABORATÓRIO DE PESQUISA]
+
+"...Nesses arquivos deve conter informações sobre o Paciente Zero.
+Conhecido como Yehudah.
+
+O Paciente Zero. Aquele que estávamos buscando uma cura...
+mas no final, acabou com tudo.
+O maior culpado nisso tudo.
+
+Ele simplesmente ficou muito... maluco.
+Eu nem sei mais onde ele está.
+
+A gente está todo mundo se escondendo aqui.
+
+Essa é a última mensagem que eu vou mandar pra vocês.
+
+A Doutora Eva -- ela fugiu com o Adão.
+Não sabíamos para onde foram.
+Eu sei que ela tem uma filha...
+mas eu acho que ela não está perto.
+
+Bom...
+É minha última mensagem.
+
+Ele... ele acabou de quebrar a câmera dele.
+
+Que Deus tenha piedáde de nós."
+
+[FIM DA TRANSMISSÃO]
+[NENHUM SINAL DETECTADO APÓS ESTE PONTO]`
+    },
+    {
+        id: 'lab_file2',
+        title: 'AUDIO_LOG-02: Registro de Pesquisa',
+        content: `[TRANSCRIÇÃO AUTOMÁTICA - ARQUIVO DE VOZ]
+[DATA: CORROMPIDA] [ORIGEM: LABORATÓRIO DE PESQUISA]
+
+"...Mais uma vez tentamos fazer a cura com o Experimento Zero.
+Ele não conseguiu reagir a nenhum tipo de tratamento que fizemos.
+
+Bom... a gente usou quase tudo que tínhamos.
+E estamos com problemas sérios se uma leva de suprimentos não chegar.
+
+O pessoal da enfermaria deve ter alguma coisa ainda.
+Mas a gente não gosta de subir lá em cima.
+
+Bom, mas para baixo também...
+eu não gosto de falar com aqueles caras de lá.
+Ele sempre parece estar aguardando alguma coisa muito importante.
+Como se a gente não fosse os cientistas desse lugar, né?
+
+Bom... enfim.
+
+Vou terminar de fazer os experimentos aqui.
+Isto é tudo... logo logo eu vou poder ver minha filha.
+
+Eu acho...
+
+Estou cansada de tudo isso."
+
+[FIM DA TRANSMISSÃO]`
+    },
+    {
+        id: 'lab_file3',
+        title: 'PACIENTES: 1-3',
+        content: `[DIÁRIO DE PESQUISA - LABORATÓRIO B-4]
+[AUTOR: NÃO IDENTIFICADO]
+[STATUS DO ARQUIVO: PARCIALMENTE CORROMPIDO]
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+DIA 01
+━━━━━━━━━━━━━━━━━━━━━━━━
+Hoje começamos com cruzamento de DNA.
+Simplesmente pegaram um de elefante.
+Quem seria estúpido o suficiente para
+conseguir fazer isso com um humano?
+
+...
+
+Eu.
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+DIA 02
+━━━━━━━━━━━━━━━━━━━━━━━━
+Não é que o cruzamento deu certo.
+Aparentemente o paciente voltou a escutar.
+
+Bom que no pensamento eu que projetei isso...
+Mas enfim.
+Realmente seria no paciente 3.
+Vamos ver o que acontece.
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+DIA 03
+━━━━━━━━━━━━━━━━━━━━━━━━
+Hoje chegaram mais enzimas daquele fungo que eu encontrei.
+
+Bom... eu acho que não tem problema misturar.
+Afinal nem sabemos se o paciente vai sobreviver
+igual o 01.
+
+Mas bom, eu vou tentar.
+Eu estou aqui mesmo.
+Quem pode me impedir?
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+DIA 04
+━━━━━━━━━━━━━━━━━━━━━━━━
+Me desculpe.
+Por favor, me desculpe, Doutora.
+
+Eu... eu não sabia o que estava fazendo.
+
+Ele... ele quebrou o tanque.
+Eu estou escondido aqui mas eu o vejo.
+Ele... pulsa. Brilha.
+
+Eu misturei coisa que não devia.
+
+Eu acho que ele está me escutando.
+
+Não... não... desculpa...
+não... não... não...
+
+[ARQUIVO ENCERRADO ABRUPTAMENTE]
+[DADOS SUBSEQUENTES: IRRECUPERÁVEIS]`
+    }
+];
+
 function renderTerminalFiles() {
     const list = document.getElementById('fileList');
     list.innerHTML = '';
-    
-    terminalLore.forEach(file => {
+
+    const files = currentTerminalContext === 'LAB' ? labLore : terminalLore;
+
+    files.forEach(file => {
         const btn = document.createElement('button');
         btn.className = 'terminal-btn file-btn';
         btn.innerHTML = `<span class="btn-prompt">></span> ${file.title}`;
@@ -2660,12 +2899,12 @@ document.addEventListener('keydown', (e) => {
 function handleTerminalError(btn) {
     userSequence = [];
     const status = document.getElementById('terminalStatus');
-    
+
     status.textContent = 'ERRO NA SEQUÊNCIA';
     status.className = 'terminal-status error';
-    
+
     if (btn) btn.classList.add('wrong');
-    
+
     setTimeout(() => {
         if (btn) btn.classList.remove('wrong');
         document.querySelectorAll('.key-btn').forEach(b => b.classList.remove('correct'));
@@ -2686,7 +2925,7 @@ function closeTerminalMinigame() {
 
 function openContextMenu(e) {
     const menu = document.getElementById('mapOverlayMenu');
-    
+
     // Posicionamento inicial
     let x = e.clientX;
     let y = e.clientY;
