@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SISTEMA DE MONITORAMENTO - UNIDADE BUNKER</title>
+    <title>PROTOCOLO MALAK - UNIDADE BUNKER</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
 </head>
@@ -12,9 +12,21 @@
 <body>
     <div class="container">
         <header>
-            <h1>SISTEMA DE MONITORAMENTO OMEGA</h1>
+            <h1>PROTOCOLO MALAK</h1>
             <div class="subtitle">TERMINAL OPERACIONAL v4.2.0 - STATUS: ONLINE</div>
         </header>
+
+        <!-- Menu de Contexto (Mantido para o Mouse) -->
+        <div id="mapOverlayMenu" class="map-overlay-menu">
+            <div class="menu-content">
+                <button class="control-btn" onclick="quickAddCharacter()">➕ Personagem</button>
+                <button class="control-btn" onclick="toggleLocations()" id="toggleLocationsBtn">📍 Locais</button>
+                <button class="control-btn" onclick="copySelectedCharacters()" id="copyBtn">📋 Copiar</button>
+                <button class="control-btn" onclick="pasteCharacters()" id="pasteBtn" disabled>📄 Colar</button>
+                <button class="control-btn" onclick="deselectAll()">☐ Limpar</button>
+                <button class="control-btn" onclick="deleteSelected()">🗑️ Remover</button>
+            </div>
+        </div>
 
         <div class="map-container">
             <div class="main-map">
@@ -30,39 +42,6 @@
                         ← Voltar
                     </button>
                     <div class="current-map-title" id="currentMapTitle">SALA DE MONITORES</div>
-                </div>
-
-                <div class="map-controls">
-                    <button class="control-btn" onclick="quickAddCharacter()">
-                        ➕ Adicionar Personagem
-                    </button>
-                    <button class="control-btn" onclick="toggleLocations()" id="toggleLocationsBtn">
-                        📍 Ocultar Locais
-                    </button>
-                    <button class="control-btn" onclick="copySelectedCharacters()" id="copyBtn">
-                        📋 Copiar Selecionados
-                    </button>
-                    <button class="control-btn" onclick="pasteCharacters()" id="pasteBtn" disabled>
-                        📄 Colar Personagens
-                    </button>
-                    <button class="control-btn" onclick="deselectAll()">
-                        ☐ Deselecionar Todos
-                    </button>
-                    <button class="control-btn" onclick="deleteSelected()">
-                        🗑️ Remover Selecionados
-                    </button>
-                </div>
-
-                <div
-                    style="margin-bottom: 15px; padding: 8px; background: rgba(0, 20, 0, 0.5); border-radius: 2px; border: 1px solid #22c55e; font-size: 0.85em; color: #22c55e; text-align: center;">
-                    ⌨️ <strong style="color: #f59e0b;">1</strong>=Entrada | <strong
-                        style="color: #f59e0b;">2</strong>=Garagem | <strong style="color: #f59e0b;">3</strong>=Enfermaria
-                    | <strong style="color: #f59e0b;">4</strong>=Setor 4 | <strong
-                        style="color: #f59e0b;">5</strong>=Setor 5 | <strong style="color: #f59e0b;">6</strong>=Setor 6
-                    | <strong style="color: #f59e0b;">0</strong>=Geral | <strong
-                        style="color: #f59e0b;">F2</strong>=Modo CCTV | <strong style="color: #f59e0b;">E</strong>=Luzes
-                    (Lig/Des) | <strong style="color: #f59e0b;">B</strong>=Blackout | <strong
-                        style="color: #f59e0b;">L</strong>=Lanterna
                 </div>
 
                 <div class="map-image-container" id="mapContainer">
@@ -83,6 +62,9 @@
                                 <div class="cctv-timestamp" id="cctvTimestamp">0000-00-00 00:00:00</div>
                             </div>
                         </div>
+                        
+                        <!-- MALAK RADAR LAYER (Para F2 e Monitor Room) -->
+                        <div id="cctvRadarLayer" style="display: none; position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index: 55;"></div>
 
                         <canvas id="flashlightCanvas"></canvas>
                         <img src="bunker_geral.png" alt="ESQUEMA TÉCNICO" class="map-image" id="mapImage">
@@ -132,8 +114,11 @@
                         <div class="terminal-scanlines"></div>
                     </div>
                     <div class="terminal-menu-options">
-                        <button class="terminal-btn" onclick="switchTerminalScreen('CHALLENGE')">
+                        <button class="terminal-btn" id="terminalBtnLights" onclick="switchTerminalScreen('CHALLENGE')">
                             <span class="btn-prompt">></span> LIGAR LUZES (EMERGÊNCIA)
+                        </button>
+                        <button class="terminal-btn" id="terminalBtnFiles" onclick="switchTerminalScreen('FILES')" style="display:none">
+                            <span class="btn-prompt">></span> [📂] ACESSAR ARQUIVOS LOCAIS
                         </button>
                         <button class="terminal-btn" onclick="switchTerminalScreen('LOGIN')">
                             <span class="btn-prompt">></span> LOGIN DE SEGURANÇA
@@ -182,6 +167,51 @@
                         <div class="terminal-scanlines"></div>
                     </div>
                     <button class="terminal-btn small" onclick="switchTerminalScreen('MENU')">VOLTAR AO MENU</button>
+                </div>
+
+                <!-- MINIJOGO DE TIMING (MECÂNICO) -->
+                <div id="terminalScreenTiming" class="terminal-view">
+                    <div class="terminal-screen mini">
+                        <div class="terminal-output">SINCRONISMO DO REATOR AUXILIAR</div>
+                        <div class="terminal-status" id="timingStatus">ESTABILIZE A FREQUÊNCIA</div>
+                        <div class="terminal-scanlines"></div>
+                        
+                        <div class="timing-meter-container" id="timingMeterContainer">
+                            <!-- Zonas alvo geradas via JS -->
+                            <div class="timing-needle" id="timingNeedle"></div>
+                        </div>
+                    </div>
+                    <div class="terminal-menu-options">
+                        <button class="terminal-btn" id="timingActionBtn" onclick="checkTiming()">
+                            <span class="btn-prompt">></span> ATIVAR REATOR (ESPAÇO)
+                        </button>
+                    </div>
+                    <button class="terminal-link" onclick="switchTerminalScreen('MENU')">CANCELAR MANUTENÇÃO</button>
+                </div>
+
+                <!-- LISTA DE ARQUIVOS (LORE) -->
+                <div id="terminalScreenFiles" class="terminal-view">
+                    <div class="terminal-screen mini">
+                        <div class="terminal-output">SISTEMA DE ARQUIVOS - EXPERIMENTO ADÃO</div>
+                        <div class="terminal-status">LISTANDO DOCUMENTOS DISPONÍVEIS...</div>
+                        <div class="terminal-scanlines"></div>
+                    </div>
+                    <div class="terminal-menu-options" id="fileList">
+                        <!-- Gerado via JS -->
+                    </div>
+                    <button class="terminal-link" onclick="switchTerminalScreen('MENU')">VOLTAR AO MENU</button>
+                </div>
+
+                <!-- VISUALIZAÇÃO DE ARQUIVO (LEITURA) -->
+                <div id="terminalScreenFileview" class="terminal-view">
+                    <div class="terminal-screen-wide">
+                        <div class="terminal-output" id="fileTitle">DOCUMENTO_01</div>
+                        <div class="terminal-file-content" id="fileContent">
+                            <!-- Conteúdo do arquivo aqui -->
+                        </div>
+                        <div class="terminal-scanlines"></div>
+                    </div>
+                    <button class="terminal-btn small" onclick="switchTerminalScreen('FILES')">VOLTAR À LISTA</button>
                 </div>
             </div>
         </div>

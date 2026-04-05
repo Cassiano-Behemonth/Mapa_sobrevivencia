@@ -47,7 +47,26 @@ const mapHierarchy = {
         imgExt: '.png',
         hasDayNight: true,
         icon: '🏥',
-        description: 'Unidade médica para tratamentos de emergência.'
+        description: 'Unidade médica para tratamentos de emergência.',
+        hotspots: [
+            {
+                id: 'terminal_setor3',
+                title: '💻 Acessar Terminal Auxiliar', // Pista removida
+                position: { top: '16%', right: '24%' },
+                action: 'openTerminalSetor3',
+                dayOnly: true, // Só aparece com luz acesa
+                isSecret: true // Agora escondido como o primeiro
+            },
+            {
+                id: 'maintenance_panel',
+                title: '⚙️ Painel de Manutenção de Energia',
+                position: { bottom: '30%', left: '10%' },
+                action: 'openTimingMinigame',
+                isOneTime: true,
+                nightOnly: true, // Só aparece no escuro
+                hideIf: 'isSector3EnergyRestored'
+            }
+        ]
     },
     setor_4: {
         id: 'setor_4',
@@ -100,6 +119,11 @@ let dragLoopActive = false; // Flag para controlar o loop de drag
 // Navigation state
 let navigationPath = ['general']; // Stack de navegação
 let charactersByLocation = {}; // Personagens por localização
+let monstersByLocation = {}; // Monstros por localização
+let monsters = []; // Monstros do setor atual
+
+let lastMouseX = 0;
+let lastMouseY = 0;
 
 // Condition systems
 let isLightsOn = true; // false = desligado, true = ligado
@@ -129,6 +153,38 @@ let flashlightState = {
 let terminalSequence = [];
 let userSequence = [];
 let terminalActive = false;
+let isTerminalAuthorizedKain = localStorage.getItem('terminalAuthorizedMalak_kain') === 'true';
+let isTerminalAuthorizedAdam = localStorage.getItem('terminalAuthorizedMalak_adam') === 'true';
+let isTerminalBlockedKain = localStorage.getItem('terminalBlockedMalak_kain') === 'true';
+let isTerminalBlockedAdam = localStorage.getItem('terminalBlockedMalak_adam') === 'true';
+let isSector3EnergyRestored = localStorage.getItem('sector3EnergyRestored') === 'true';
+
+let currentTerminalContext = 'GENERAL'; // 'GENERAL' (kain) ou 'MEDICAL' (adam)
+
+// Flashlight Flicker Timer (10 minutes)
+setInterval(() => {
+    if (flashlightActive) {
+        flickerFlashlight();
+    }
+}, 600000);
+
+function flickerFlashlight() {
+    const originalIntensity = flashlightState.intensity;
+    // Sequência de piscadas rápidas
+    const flickerSteps = [0.4, 0.98, 0.3, 0.98, 0.5, 0.98];
+    let step = 0;
+    
+    const interval = setInterval(() => {
+        flashlightState.intensity = flickerSteps[step];
+        drawFlashlight(); // Redesenhar o canvas
+        step++;
+        if (step >= flickerSteps.length) {
+            clearInterval(interval);
+            flashlightState.intensity = originalIntensity;
+            drawFlashlight();
+        }
+    }, 50);
+}
 
 // ========================================================================
 // FUNÇÕES DE NAVEGAÇÃO
@@ -259,8 +315,13 @@ function loadLocation(locationId) {
     // Clear and update hotspots
     clearHotspots();
     if (locationData.hotspots) {
-        // Filtrar hotspots baseados em condições (ex: terminal só aparece no escuro)
+        // Filtrar hotspots baseados em condições
         const visibleHotspots = locationData.hotspots.filter(h => {
+            // Regra geral de visibilidade por iluminação
+            if (h.dayOnly && !isLightsOn) return false;
+            if (h.nightOnly && isLightsOn) return false;
+
+            // Regras específicas herdadas
             if (h.id === 'terminal_pc') {
                 return !isLightsOn || isBlackoutActive;
             }
@@ -322,9 +383,9 @@ function renderMonitorRoom() {
     sectors.forEach(sectorId => {
         const data = mapHierarchy[sectorId];
         if (!data) return;
-        
         const monitor = document.createElement('div');
         monitor.className = 'monitor';
+        monitor.id = 'monitor-' + sectorId;
         if (isBlackoutActive) monitor.classList.add('no-signal');
         monitor.onclick = () => navigateToLocation(sectorId);
         
@@ -419,6 +480,11 @@ function createHotspots(hotspots) {
     const mapContainer = document.getElementById('mapContainer');
 
     hotspots.forEach(hotspot => {
+        // Verificar lógica de ocultação (ex: após completar manutenção)
+        if (hotspot.hideIf && window[hotspot.hideIf]) {
+            return;
+        }
+
         // Verificar se é só nas luzes acesas
         if (hotspot.dayOnly && !isLightsOn) {
             return;
@@ -564,8 +630,38 @@ function pasteCharacters() {
     }, 2000);
 }
 
-// Atalhos de teclado para copiar/colar
+// Atalhos de teclado para copiar/colar e spawn
 document.addEventListener('keydown', (e) => {
+    // Tecla [ - Spawn Monster
+    if (e.key === '[' && !e.target.matches('input, textarea') && !terminalActive) {
+        e.preventDefault();
+        spawnMonster();
+    }
+
+    // Tecla Delete - Remover Monstro Hovered
+    if (e.key === 'Delete' && window.hoveredMonster && !e.target.matches('input, textarea')) {
+        e.preventDefault();
+        monsters = monsters.filter(m => m.id !== window.hoveredMonster);
+        document.getElementById(window.hoveredMonster)?.remove();
+        window.hoveredMonster = null;
+        saveCurrentLocationCharacters();
+        drawFlashlight();
+    }
+
+    // Tecla F - Inverter (Flip) Monstro Hovered
+    if ((e.key === 'f' || e.key === 'F') && window.hoveredMonster && !e.target.matches('input, textarea')) {
+        e.preventDefault();
+        const mInfo = monsters.find(m => m.id === window.hoveredMonster);
+        if (mInfo) {
+            mInfo.flipped = !mInfo.flipped;
+            const el = document.getElementById(mInfo.id);
+            if (el) {
+                el.style.transform = `translate(-50%, -50%) rotate(${mInfo.rotation || 0}deg) scaleX(${mInfo.flipped ? -1 : 1})`;
+            }
+            saveCurrentLocationCharacters();
+        }
+    }
+
     // Ctrl+C / Cmd+C - Copiar
     if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !e.target.matches('input, textarea')) {
         if (selectedCharacters.size > 0) {
@@ -672,23 +768,138 @@ function quickAddCharacter() {
 }
 
 // ========================================================================
+// MONSTER SYSTEM - O ENXERTADO
+// ========================================================================
+
+function spawnMonster(x, y) {
+    const monster = {
+        id: 'monster-' + Date.now(),
+        x: x || lastMouseX,
+        y: y || lastMouseY,
+        rotation: 0
+    };
+    
+    monsters.push(monster);
+    renderMonster(monster);
+    saveCurrentLocationCharacters(); // Salva estado atual incorporando monstros
+}
+
+function renderMonster(monster) {
+    const mapContainer = document.getElementById('mapContainer');
+    const mapImage = document.getElementById('mapImage');
+    const el = document.createElement('div');
+    el.className = 'monster-marker';
+    el.id = monster.id;
+    el.style.left = monster.x + '%';
+    el.style.top = monster.y + '%';
+    el.style.transform = `translate(-50%, -50%) rotate(${monster.rotation || 0}deg) scaleX(${monster.flipped ? -1 : 1})`;
+    
+    const currentLocationId = navigationPath[navigationPath.length - 1];
+    if (currentLocationId === 'general') {
+        // Na sala de monitores, o monstro físico gigante é escondido para a tela não virar um carnaval.
+        // Apenas a bolinha do radar representará ele visualmente.
+        el.style.opacity = '0';
+    }
+
+    el.innerHTML = `
+        <div class="monster-visual">
+            <img src="monstro_enxertado.png" alt="O Enxertado" style="pointer-events: auto; user-select: none;" draggable="false">
+            <div class="monster-pulse-glow"></div>
+        </div>
+    `;
+    
+    // Prevenir drag nativo da imagem HTML
+    el.addEventListener('dragstart', (e) => e.preventDefault());
+    
+    // Transformar o monstro em arrastável e interativo
+    let isDragging = false;
+    
+    el.addEventListener('mousedown', (e) => {
+        if(e.button !== 0) return;
+        e.stopPropagation(); // Impede o drag da tela principal
+        isDragging = true;
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if(isDragging) {
+            const rect = mapImage.getBoundingClientRect();
+            monster.x = ((e.clientX - rect.left) / rect.width) * 100;
+            monster.y = ((e.clientY - rect.top) / rect.height) * 100;
+            el.style.left = monster.x + '%';
+            el.style.top = monster.y + '%';
+            if (!flashlightActive) drawFlashlight(); // Atualiza sombra ao vivo
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if(isDragging) {
+            isDragging = false;
+            saveCurrentLocationCharacters();
+        }
+    });
+
+    // Rotação no Scroll
+    el.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 15 : -15;
+        monster.rotation = (monster.rotation || 0) + delta;
+        el.style.transform = `translate(-50%, -50%) rotate(${monster.rotation}deg) scaleX(${monster.flipped ? -1 : 1})`;
+        saveCurrentLocationCharacters();
+        if(!flashlightActive) drawFlashlight(); 
+    });
+
+    // Rastrear cursor para atalhos do teclado (Delete / Flip)
+    el.addEventListener('mouseenter', () => window.hoveredMonster = monster.id);
+    el.addEventListener('mouseleave', () => window.hoveredMonster = null);
+
+    mapContainer.appendChild(el);
+}
+
+function saveAllMonstersFromStorage() {
+    localStorage.setItem('rpgMapMonstersV1', JSON.stringify(monstersByLocation));
+}
+
+function loadAllMonstersFromStorage() {
+    const saved = localStorage.getItem('rpgMapMonstersV1');
+    if (saved) {
+        try {
+            monstersByLocation = JSON.parse(saved);
+        } catch (e) {
+            console.error('Erro ao carregar monstros:', e);
+        }
+    }
+}
+
+// ========================================================================
 // CHARACTER MANAGEMENT
 // ========================================================================
 
 function saveCurrentLocationCharacters() {
     const locationId = getCurrentLocation();
     charactersByLocation[locationId] = [...characters];
+    monstersByLocation[locationId] = [...monsters]; // NOVO: Salvar monstros
     saveAllCharactersToStorage();
+    saveAllMonstersFromStorage(); // NOVO: Persistência de monstros
 }
 
 function loadCharactersForLocation(locationId) {
     // Clear DOM
     document.querySelectorAll('.character-marker').forEach(m => m.remove());
+    document.querySelectorAll('.token-marker').forEach(m => m.remove());
+    document.querySelectorAll('.monster-marker').forEach(m => m.remove());
 
     // Load characters
     characters = charactersByLocation[locationId] || [];
     characters.forEach(char => renderCharacter(char));
 
+    // Load monsters - mas NÃO renderizar no Mapa 0 (Sala de Monitores)
+    // Monstros dos setores são rastreados via radar nos monitores, não como sprites
+    if(locationId !== 'general') {
+        monsters = monstersByLocation[locationId] || [];
+        monsters.forEach(m => renderMonster(m));
+    } else {
+        monsters = []; // Monstros pertencem a setores, não ao mapa geral
+    }
 }
 
 function placeCharacter(x, y) {
@@ -1588,6 +1799,19 @@ function drawFlashlight() {
     // 1. Limpar e preencher com escuridão total
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Lógica do Flicker a cada 2 minutos (120.000 ms)
+    const now = Date.now();
+    let flickerOpacity = 1;
+    const cycleTime = now % 120000;
+    // Janela de terror de 2 segundos a cada ciclo
+    if (cycleTime < 2500) {
+        // Pisca brutalmente gerando valor aleatório (entre 0.4 e 1.0)
+        flickerOpacity = 0.4 + (Math.random() * 0.6);
+        
+        // As vezes pisca totalmente para 0
+        if (Math.random() > 0.8) flickerOpacity = 0;
+    }
+
     // Ajustar intensidade baseado no modo
     const darknessIntensity = isBlackoutActive ? 0.98 : 0.85;
     ctx.fillStyle = `rgba(0, 0, 5, ${darknessIntensity})`;
@@ -1606,29 +1830,114 @@ function drawFlashlight() {
         ctx.save();
         ctx.globalCompositeOperation = 'destination-out';
 
-        // Usar o raio do estado para sincronia perfeita
-        const lightRadius = flashlightState.radius;
+        // Usar o raio do estado para sincronia perfeita e aplicar flicker
+        const lightRadius = flashlightState.radius * flickerOpacity;
 
-        // Desenhar o cone com gradiente radial para suavizar
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, lightRadius);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        gradient.addColorStop(0.4, 'rgba(255, 255, 255, 1)');
-        gradient.addColorStop(0.75, 'rgba(255, 255, 255, 0.9)');
-        gradient.addColorStop(0.92, 'rgba(255, 255, 255, 0.5)');
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        if (lightRadius > 0) {
+            // Desenhar o cone com gradiente radial para suavizar
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, lightRadius);
+            gradient.addColorStop(0, `rgba(255, 255, 255, ${1 * flickerOpacity})`);
+            gradient.addColorStop(0.4, `rgba(255, 255, 255, ${1 * flickerOpacity})`);
+            gradient.addColorStop(0.75, `rgba(255, 255, 255, ${0.9 * flickerOpacity})`);
+            gradient.addColorStop(0.92, `rgba(255, 255, 255, ${0.5 * flickerOpacity})`);
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
-        ctx.fillStyle = gradient;
+            ctx.fillStyle = gradient;
 
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        // O arco começa em angle-PI/2 porque 0 radianos no canvas é para a direita (3 horas)
-        ctx.arc(x, y, lightRadius, angle - halfWidth - Math.PI / 2, angle + halfWidth - Math.PI / 2);
-        ctx.closePath();
-        ctx.fill();
-
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            // O arco começa em angle-PI/2 porque 0 radianos no canvas é para a direita
+            ctx.arc(x, y, lightRadius, angle - halfWidth - Math.PI / 2, angle + halfWidth - Math.PI / 2);
+            ctx.closePath();
+            ctx.fill();
+        }
         ctx.restore();
     });
+
+    // 3. Desenhar a aura pulsante dos monstros
+    monsters.forEach(m => {
+        const mx = (m.x / 100) * canvas.width;
+        const my = (m.y / 100) * canvas.height;
+        
+        // Efeito de pulso baseado no tempo MAIS LENTO (dividido por 1200)
+        const pulse = 1 + 0.15 * Math.sin(Date.now() / 1200);
+        const monsterRadius = 180 * pulse;
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        
+        const gradient = ctx.createRadialGradient(mx, my, 0, mx, my, monsterRadius);
+        gradient.addColorStop(0, 'rgba(34, 197, 94, 0.9)'); // Tom verde Penicillium
+        gradient.addColorStop(0.3, 'rgba(34, 197, 94, 0.5)');
+        gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
+        
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(mx, my, monsterRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // 4. Detecção de Iluminação do Monstro (Apenas no Cone e Gradual)
+    monsters.forEach(m => {
+        const mx = (m.x / 100) * canvas.width;
+        const my = (m.y / 100) * canvas.height;
+        
+        let maxIllumination = 0;
+
+        allCasters.forEach(caster => {
+            if (!caster.flashlightOn) return;
+            const cx = (caster.x / 100) * canvas.width;
+            const cy = (caster.y / 100) * canvas.height;
+            const dist = Math.hypot(mx - cx, my - cy);
+            
+            const lightRadius = flashlightState.radius;
+            // Se estiver dentro da distância máxima do cone...
+            if (dist <= lightRadius) {
+                const dx = mx - cx;
+                const dy = my - cy;
+                const monsterAngle = Math.atan2(dy, dx);
+                
+                // O ângulo no canvas (0 graus para cima) precisa subtrair PI/2 para a correta tradução matemática
+                const casterAngle = (caster.rotation || 0) * (Math.PI / 180) - (Math.PI / 2);
+                
+                let angleDiff = monsterAngle - casterAngle;
+                // Normaliza entre -PI e PI
+                while (angleDiff <= -Math.PI) angleDiff += Math.PI * 2;
+                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                
+                const halfWidth = (flashlightState.width / 2) * (Math.PI / 180);
+                
+                // Se cair dentro da abertura do cone da lanterna:
+                if (Math.abs(angleDiff) <= halfWidth) {
+                    // Revelação gradual: O quão perto ele está do início do cone
+                    let intensity = 1.0 - (dist / lightRadius);
+                    // Deixa a opacidade preencher mais fácil no começo antes de decair devagar pras bordas
+                    intensity = Math.pow(intensity, 0.4); 
+                    
+                    if (intensity > maxIllumination) maxIllumination = intensity;
+                }
+            }
+        });
+
+        // Aplicar Opacidade Exata calculada ao invés da luz cheia
+        const el = document.getElementById(m.id);
+        if (el) {
+            const img = el.querySelector('.monster-visual img');
+            if (img) {
+                if (isBlackoutActive) {
+                    img.style.opacity = maxIllumination; // Gradualidade direta sem delay
+                    img.style.transition = 'none'; // Atualiza junto com o Refresh rate da luz
+                } else {
+                    img.style.opacity = ''; // Retorna ao CSS normal da luz acesa
+                    img.style.transition = 'opacity 0.5s ease-in-out';
+                }
+            }
+        }
+    });
+
 }
+
 
 // ========================================================================
 // EVENT LISTENERS
@@ -1638,8 +1947,27 @@ function setupEventListeners() {
     const mapContainer = document.getElementById('mapContainer');
     const mapImage = document.getElementById('mapImage');
 
+    // contextmenu to open the overlay menu
+    mapContainer.addEventListener('contextmenu', (e) => {
+        // Se o terminal estiver aberto, deixe o comportamento padrão (ou nada)
+        if (terminalActive) return;
+
+        e.preventDefault();
+        openContextMenu(e); // Passar o evento para posicionar
+    });
+
     // Click to place character or token
     mapContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('map-image') || e.target === mapContainer) {
+            const rect = mapImage.getBoundingClientRect();
+            lastMouseX = ((e.clientX - rect.left) / rect.width) * 100;
+            lastMouseY = ((e.clientY - rect.top) / rect.height) * 100;
+        }
+
+        // Fechar menu de contexto se clicar no mapa
+        if (document.getElementById('mapOverlayMenu').classList.contains('active')) {
+            closeContextMenu();
+        }
         // Se está colocando token
         if (placingToken) {
             if (e.target.classList.contains('map-image') || e.target === mapContainer) {
@@ -1666,6 +1994,12 @@ function setupEventListeners() {
     });
 
     // Mouse Wheel Rotation
+    mapContainer.addEventListener('mousemove', (e) => {
+        const rect = mapImage.getBoundingClientRect();
+        lastMouseX = ((e.clientX - rect.left) / rect.width) * 100;
+        lastMouseY = ((e.clientY - rect.top) / rect.height) * 100;
+    });
+
     mapContainer.addEventListener('wheel', (e) => {
         if (selectedCharacters.size > 0 && !e.target.matches('input, textarea')) {
             // Se algum personagem está selecionado, rodar em vez de scrollar no mapa
@@ -1702,8 +2036,24 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     setupMultiSelection();
 
+    // Close context menu on ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeContextMenu();
+        }
+    });
+
+    // Close context menu on click outside
+    document.addEventListener('mousedown', (e) => {
+        const menu = document.getElementById('mapOverlayMenu');
+        if (menu.classList.contains('active') && !menu.contains(e.target)) {
+            closeContextMenu();
+        }
+    });
+
     // Load saved data
     loadAllCharactersFromStorage();
+    loadAllMonstersFromStorage();
     loadNavigationState();
 
     // Load saved environmental states
@@ -1757,6 +2107,66 @@ function updateCctvOverlay() {
 // Start CCTV loop
 setInterval(updateCctvOverlay, 1000);
 
+// === RADAR DO MAPA 0 (Sala de Monitores) ===
+// Apenas projeta pontos reais onde cada monstro está em cada setor.
+// F2 não usa mais radar - apenas estética de câmera.
+function globalRadarLoop() {
+    const currentLoc = navigationPath[navigationPath.length - 1];
+    
+    if(currentLoc === 'general') {
+        const sectors = ['setor_1','setor_2','setor_3','setor_4','setor_5','setor_6'];
+        
+        // Se blackout ativo, câmeras estão sem sinal — limpar todos os pontos
+        if(isBlackoutActive) {
+            sectors.forEach(sid => {
+                const mon = document.getElementById('monitor-' + sid);
+                if(mon) mon.querySelectorAll('.cctv-blip').forEach(t => t.remove());
+            });
+            setTimeout(() => requestAnimationFrame(globalRadarLoop), 100);
+            return;
+        }
+        
+        sectors.forEach(sid => {
+            const mon = document.getElementById('monitor-' + sid);
+            if(!mon) return;
+            mon.style.position = 'relative';
+            mon.style.overflow = 'hidden';
+            
+            const secMonsters = monstersByLocation[sid] || [];
+            
+            // Remover trackers já deletados
+            mon.querySelectorAll('.cctv-blip.real').forEach(t => {
+                const mId = t.dataset.monsterId;
+                if(!secMonsters.find(m => m.id === mId)) t.remove();
+            });
+            
+            // Criar ou atualizar tracker por monstro presente no setor
+            secMonsters.forEach(m => {
+                const tid = 'radar-mon-' + sid + '-' + m.id;
+                let tracker = document.getElementById(tid);
+                if(!tracker) {
+                    tracker = document.createElement('div');
+                    tracker.id = tid;
+                    tracker.className = 'cctv-blip real';
+                    tracker.dataset.monsterId = m.id;
+                    tracker.style.animation = 'none';
+                    tracker.style.opacity = '0';
+                    mon.appendChild(tracker);
+                }
+                tracker.style.left = m.x + '%';
+                tracker.style.top = m.y + '%';
+                tracker.style.opacity = 0.7 + Math.sin(Date.now() / 400) * 0.3;
+            });
+        });
+    }
+
+    setTimeout(() => requestAnimationFrame(globalRadarLoop), 100);
+}
+
+// Inicializa o loop de radar
+globalRadarLoop();
+
+
 function toggleCctvMode() {
     cctvEnabled = !cctvEnabled;
     const noise = document.querySelector('.noise-overlay');
@@ -1766,27 +2176,63 @@ function toggleCctvMode() {
     if (noise) noise.style.display = cctvEnabled ? 'block' : 'none';
     if (scanlines) scanlines.style.display = cctvEnabled ? 'block' : 'none';
     if (camera) camera.style.display = cctvEnabled ? 'flex' : 'none';
+    // cctvRadarLayer não é mais usado no F2 - apenas estética de câmera
 }
+
 
 // ========================================================================
 // TERMINAL LOGIC - PROTOCOLO JERUSALÉM
 // ========================================================================
 
 function openTerminalMinigame() {
+    currentTerminalContext = 'GENERAL';
     terminalActive = true;
     const modal = document.getElementById('terminalMinigame');
     modal.style.display = 'flex';
     
-    // Iniciar no menu principal
+    // Mostrar opção de ligar luzes no terminal geral
+    document.getElementById('terminalBtnLights').style.display = 'block';
+    
     switchTerminalScreen('MENU');
+}
+
+function openTerminalSetor3() {
+    currentTerminalContext = 'MEDICAL';
+    terminalActive = true;
+    const modal = document.getElementById('terminalMinigame');
+    modal.style.display = 'flex';
+    
+    // Esconder opção de ligar luzes no terminal do setor 3
+    document.getElementById('terminalBtnLights').style.display = 'none';
+    
+    switchTerminalScreen('MENU');
+}
+
+let timingInterval = null;
+let timingDirection = 1;
+let needlePos = 0;
+let timingScore = 0;
+let timingLevel = 1; // 1, 2, 3
+let timingTargetScore = 6; // 1 + 2 + 3
+let currentLevelHits = 0;
+
+function openTimingMinigame() {
+    terminalActive = true;
+    const modal = document.getElementById('terminalMinigame');
+    modal.style.display = 'flex';
+    switchTerminalScreen('TIMING');
 }
 
 /**
  * Troca entre as visualizações do terminal
- * @param {string} screenKey - MENU, LOGIN, CHALLENGE, CAMERAS
+ * @param {string} screenKey - MENU, LOGIN, CHALLENGE, CAMERAS, TIMING, FILES, FILEVIEW
  */
-function switchTerminalScreen(screenKey) {
-    // Esconder todas as views
+function switchTerminalScreen(screenKey) {    
+    if (timingInterval) {
+        clearInterval(timingInterval);
+        timingInterval = null;
+    }
+
     document.querySelectorAll('.terminal-view').forEach(view => {
         view.classList.remove('active');
     });
@@ -1797,17 +2243,41 @@ function switchTerminalScreen(screenKey) {
     if (targetView) {
         targetView.classList.add('active');
         
-        // Inicializações específicas por tela
         if (screenKey === 'CHALLENGE') {
             startLightsChallenge();
         } else if (screenKey === 'LOGIN') {
+            const isBlocked = (currentTerminalContext === 'GENERAL') ? isTerminalBlockedKain : isTerminalBlockedAdam;
+            const isAuth = (currentTerminalContext === 'GENERAL') ? isTerminalAuthorizedKain : isTerminalAuthorizedAdam;
+            
+            if (isBlocked) {
+                document.getElementById('loginStatus').textContent = 'SISTEMA BLOQUEADO - ACESSO NEGADO';
+                document.getElementById('loginStatus').className = 'terminal-status error';
+                document.getElementById('terminalLoginInput').style.display = 'none';
+                return;
+            }
+            if (isAuth) {
+                switchTerminalScreen(currentTerminalContext === 'GENERAL' ? 'CAMERAS' : 'MENU'); 
+                return;
+            }
             const input = document.getElementById('terminalLoginInput');
+            input.style.display = 'block';
             input.value = '';
             input.focus();
-            document.getElementById('loginStatus').textContent = 'INSIRA AS CREDENCIAIS DE ACESSO';
+            document.getElementById('loginStatus').textContent = `AUTENTICAÇÃO: ${currentTerminalContext}`;
             document.getElementById('loginStatus').className = 'terminal-status';
         } else if (screenKey === 'CAMERAS') {
             renderTerminalCameras();
+        } else if (screenKey === 'TIMING') {
+            timingScore = 0;
+            timingLevel = 1;
+            currentLevelHits = 0;
+            startTimingChallenge();
+        } else if (screenKey === 'FILES') {
+            renderTerminalFiles();
+        } else if (screenKey === 'MENU') {
+            // Mostrar botão de arquivos se autorizado
+            const isAuth = (currentTerminalContext === 'GENERAL') ? isTerminalAuthorizedKain : isTerminalAuthorizedAdam;
+            document.getElementById('terminalBtnFiles').style.display = isAuth ? 'block' : 'none';
         }
     }
 }
@@ -1818,17 +2288,37 @@ function handleTerminalLogin() {
     const status = document.getElementById('loginStatus');
     const val = input.value.trim().toLowerCase();
 
-    if (val === 'kain') {
-        status.textContent = 'ACESSO CONCEDIDO. BEM-VINDO, KAIN.';
+    const expected = (currentTerminalContext === 'GENERAL') ? 'kain' : 'adam';
+
+    if (val === expected) {
+        if (currentTerminalContext === 'GENERAL') {
+            isTerminalAuthorizedKain = true;
+            localStorage.setItem('terminalAuthorizedMalak_kain', 'true');
+        } else {
+            isTerminalAuthorizedAdam = true;
+            localStorage.setItem('terminalAuthorizedMalak_adam', 'true');
+        }
+        
+        status.textContent = `ACESSO CONCEDIDO. BEM-VINDO, ${expected.toUpperCase()}.`;
         status.className = 'terminal-status success';
         setTimeout(() => {
-            switchTerminalScreen('CAMERAS');
+            if (currentTerminalContext === 'GENERAL') {
+                switchTerminalScreen('CAMERAS');
+            } else {
+                switchTerminalScreen('MENU');
+            }
         }, 1000);
     } else {
-        status.textContent = 'LOGIN INVÁLIDO. TENTATIVA REGISTRADA.';
+        if (currentTerminalContext === 'GENERAL') {
+            isTerminalBlockedKain = true;
+            localStorage.setItem('terminalBlockedMalak_kain', 'true');
+        } else {
+            isTerminalBlockedAdam = true;
+            localStorage.setItem('terminalBlockedMalak_adam', 'true');
+        }
+        status.textContent = 'LOGIN INVÁLIDO. ACESSO BLOQUEADO PERMANENTEMENTE.';
         status.className = 'terminal-status error';
-        input.value = '';
-        input.focus();
+        input.style.display = 'none';
     }
 }
 
@@ -1966,6 +2456,207 @@ function handleTerminalSuccess() {
     }, 1500);
 }
 
+// --- TIMING GAME LOGIC ---
+// --- TIMING GAME LOGIC ---
+function startTimingChallenge() {
+    const container = document.getElementById('timingMeterContainer');
+    const needle = document.getElementById('timingNeedle');
+    const status = document.getElementById('timingStatus');
+    status.textContent = `NIVEL ${timingLevel}/3 | ALVOS: ${currentLevelHits}/${timingLevel}`;
+    status.className = 'terminal-status';
+
+    // Limpar zonas antigas se for novo nível ou início
+    if (currentLevelHits === 0) {
+        container.querySelectorAll('.timing-target-zone').forEach(z => z.remove());
+        
+        // Gerar barras conforme o nível atual sem sobreposição
+        const usedPositions = [];
+        const zoneWidth = 50;
+        const minGap = 10; // Espaço mínimo entre barras
+
+        for (let i = 0; i < timingLevel; i++) {
+            let randomLeft;
+            let overlapping = true;
+            let attempts = 0;
+
+            while (overlapping && attempts < 50) {
+                randomLeft = Math.floor(Math.random() * (300 - zoneWidth));
+                overlapping = usedPositions.some(pos => 
+                    Math.abs(pos - randomLeft) < (zoneWidth + minGap)
+                );
+                attempts++;
+            }
+
+            usedPositions.push(randomLeft);
+            const zone = document.createElement('div');
+            zone.className = 'timing-target-zone';
+            zone.style.left = randomLeft + 'px';
+            zone.dataset.hit = "false";
+            container.appendChild(zone);
+        }
+    }
+    
+    needlePos = 0;
+    timingDirection = 1;
+    const baseSpeed = 4;
+    const speed = baseSpeed + (timingLevel * 1.5);
+
+    if (timingInterval) clearInterval(timingInterval);
+    
+    timingInterval = setInterval(() => {
+        needlePos += (speed * timingDirection);
+        if (needlePos >= 292) { needlePos = 292; timingDirection = -1; }
+        else if (needlePos <= 0) { needlePos = 0; timingDirection = 1; }
+        needle.style.left = needlePos + 'px';
+    }, 20);
+}
+
+function checkTiming() {
+    if (!timingInterval) return;
+    
+    const needleMid = needlePos + 4;
+    const zones = Array.from(document.querySelectorAll('.timing-target-zone')).filter(z => z.dataset.hit === "false");
+    
+    let hitZone = null;
+    zones.forEach(zone => {
+        const zLeft = parseInt(zone.style.left);
+        if (needleMid >= zLeft && needleMid <= (zLeft + 50)) {
+            hitZone = zone;
+        }
+    });
+    
+    if (hitZone) {
+        // Marcar zona como atingida
+        hitZone.dataset.hit = "true";
+        hitZone.style.opacity = "0.2";
+        hitZone.style.boxShadow = "none";
+        hitZone.style.background = "#fff";
+        
+        currentLevelHits++;
+        timingScore++;
+        
+        const status = document.getElementById('timingStatus');
+        
+        if (currentLevelHits >= timingLevel) {
+            // Nível Concluído
+            if (timingLevel >= 3) { // Vitória Final
+                clearInterval(timingInterval);
+                timingInterval = null;
+                status.textContent = 'MANUTENÇÃO CONCLUÍDA. ENERGIA RESTAURADA.';
+                status.className = 'terminal-status success';
+                
+                isLightsOn = true;
+                isSector3EnergyRestored = true;
+                localStorage.setItem('sector3EnergyRestored', 'true');
+                
+                setTimeout(() => {
+                    loadLocation(getCurrentLocation());
+                    closeTerminalMinigame();
+                }, 1500);
+            } else {
+                // Ir para próximo nível
+                timingLevel++;
+                currentLevelHits = 0;
+                status.textContent = 'FREQUÊNCIA ALINHADA! PRÓXIMO NÍVEL...';
+                status.className = 'terminal-status success';
+                setTimeout(() => {
+                    startTimingChallenge();
+                }, 800);
+            }
+        } else {
+            // Acertou um, mas faltam outros no mesmo nível
+            status.textContent = `VIBRAÇÃO DETECTADA! (${currentLevelHits}/${timingLevel})`;
+        }
+    } else {
+        // ERRO: Reiniciar do Nível 1
+        clearInterval(timingInterval);
+        timingInterval = null;
+        timingScore = 0;
+        timingLevel = 1;
+        currentLevelHits = 0;
+        
+        const status = document.getElementById('timingStatus');
+        status.textContent = 'SINCRONISMO PERDIDO! REINICIANDO SISTEMAS...';
+        status.className = 'terminal-status error';
+        
+        setTimeout(() => {
+            startTimingChallenge();
+        }, 1500);
+    }
+}
+
+// --- LORE SYSTEM ---
+const terminalLore = [
+    {
+        id: 'file1',
+        title: 'DOC_458-1: ADÃO_INIT',
+        content: `CODINOME: ADÃO
+EXPERIMENTO Nº: 04
+PESQUISADORA CHEFE: Dra. Eva
+
+DESCRIÇÃO:
+Sujeito encontrado em estado catatônico na região periférica da floresta. Sem sinais de identificação civil. Resgate realizado pela Dra. Eva em regime de urgência. Início dos protocolos de quarentena imediata.`
+    },
+    {
+        id: 'file2',
+        title: 'DOC_458-2: PATOLOGIA_PEND',
+        content: `RELATÓRIO MÉDICO - INFECÇÃO VIRAis
+AGENTE: Vírus Penicillium (V-P)
+ESTADO: Crítico / Instável
+
+OBSERVAÇÕES:
+O paciente apresentou exposição direta ao agente. Surpreendentemente, os tecidos biológicos demonstram uma regeneração celular 400% acima da média humana. Os sinais vitais estão se estabilizando, sugerindo uma adaptação biológica sem precedentes.`
+    },
+    {
+        id: 'file3',
+        title: 'DOC_458-3: PSIC_RECAL',
+        content: `AVALIAÇÃO PSICOLÓGICA PÓS-ADAPTAÇÃO
+
+DIAGNÓSTICO: Amnésia Anterógrada e Retrógrada Severa.
+O sujeito não possui memória de sua vida anterior à floresta. Observa-se um fenômeno de reinicialização constante. O paciente acredita que cada encontro com a Dra. Eva é o primeiro contato. Onde ele está? O que ele é? Ele ainda não faz ideia.`
+    },
+    {
+        id: 'file4',
+        title: 'DOC_501-A: PROJETO_MALAK',
+        content: `CLASSIFICADO: PROTOCOLO MALAK
+ASSUNTO: O ENXERTADO (Espécime 05)
+
+RELATÓRIO DE FALHA CRÍTICA:
+O Espécime 05 resultou em uma mutação aberrante. A fusão entre o DNA humano do paciente, o material genético cervídeo e o Vírus Penicillium não estabilizou. O resultado é uma quimera de hostilidade extrema.
+
+STATUS: FUGITIVO.
+O Enxertado rompeu a contenção durante o último blackout. Evidências indicam que ele se desloca pelos dutos de ventilação do Setor 3 e níveis inferiores. Se ouvir sons de cascos no metal... não olhe para cima.`
+    }
+];
+
+function renderTerminalFiles() {
+    const list = document.getElementById('fileList');
+    list.innerHTML = '';
+    
+    terminalLore.forEach(file => {
+        const btn = document.createElement('button');
+        btn.className = 'terminal-btn file-btn';
+        btn.innerHTML = `<span class="btn-prompt">></span> ${file.title}`;
+        btn.onclick = () => openFileView(file);
+        list.appendChild(btn);
+    });
+}
+
+function openFileView(file) {
+    document.getElementById('fileTitle').textContent = file.title;
+    document.getElementById('fileContent').textContent = file.content;
+    switchTerminalScreen('FILEVIEW');
+}
+
+// Suporte a Espaço para o minijogo
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && terminalActive && document.getElementById('terminalScreenTiming').classList.contains('active')) {
+        e.preventDefault();
+        checkTiming();
+    }
+});
+
+
 function handleTerminalError(btn) {
     userSequence = [];
     const status = document.getElementById('terminalStatus');
@@ -1987,4 +2678,32 @@ function handleTerminalError(btn) {
 function closeTerminalMinigame() {
     terminalActive = false;
     document.getElementById('terminalMinigame').style.display = 'none';
+}
+
+// ========================================================================
+// CONTEXT MENU LOGIC
+// ========================================================================
+
+function openContextMenu(e) {
+    const menu = document.getElementById('mapOverlayMenu');
+    
+    // Posicionamento inicial
+    let x = e.clientX;
+    let y = e.clientY;
+
+    // Ajuste para não sair da tela (boundary check)
+    const menuWidth = 250; // Definido no CSS
+    const menuHeight = 300; // Estimativa segura baseada nos botões
+
+    if (x + menuWidth > window.innerWidth) x -= menuWidth;
+    if (y + menuHeight > window.innerHeight) y -= menuHeight;
+
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    menu.classList.add('active');
+}
+
+function closeContextMenu() {
+    const menu = document.getElementById('mapOverlayMenu');
+    if (menu) menu.classList.remove('active');
 }

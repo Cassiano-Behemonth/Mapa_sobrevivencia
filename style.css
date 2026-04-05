@@ -6,9 +6,11 @@
 
 body {
     font-family: 'Courier New', Courier, monospace;
-    background: #0a0c0d;
+    background: #000;
     color: #22c55e;
-    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Remover barras de rolagem globais */
     background-image:
         linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
         linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
@@ -38,6 +40,33 @@ h1 {
     letter-spacing: 4px;
     font-weight: bold;
     text-transform: uppercase;
+}
+
+/* MENU DE CONTEXTO / OVERLAY */
+/* MENU DE CONTEXTO ESTILO GOOGLE/WINDOWS (COMPACTO) */
+.map-overlay-menu {
+    position: fixed; /* Posicionamento dinâmico via JS */
+    width: 250px;
+    background: rgba(0, 0, 0, 0.95);
+    border: 1px solid #22c55e;
+    z-index: 20000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.8), 0 0 10px rgba(34, 197, 94, 0.2);
+    display: flex;
+    flex-direction: column;
+    font-family: 'VT323', monospace;
+    padding: 5px 0;
+}
+
+.map-overlay-menu.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.map-overlay-menu header {
+    display: none; /* Remover cabeçalho estilo 'página' */
 }
 
 /* Toggle Status Energia */
@@ -130,6 +159,57 @@ h1 {
     margin-bottom: 15px;
     flex-wrap: wrap;
     align-items: center;
+}
+
+.menu-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.control-btn {
+    width: 100%;
+    padding: 8px 15px;
+    background: transparent;
+    color: #22c55e;
+    border: none; /* Estilo menu dropdown */
+    border-radius: 0;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    font-family: 'VT323', monospace;
+    font-size: 1.3em;
+    text-transform: uppercase;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.control-btn:hover {
+    background: #22c55e;
+    color: #000;
+    padding-left: 20px;
+}
+
+.menu-footer {
+    display: none; /* Remover rodapé redundante */
+}
+
+.terminal-close-btn {
+    background: transparent;
+    border: 1px solid #ff3b3b;
+    color: #ff3b3b;
+    padding: 8px 20px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 1.1em;
+}
+
+.terminal-close-btn:hover {
+    background: #ff3b3b;
+    color: #000;
 }
 
 .back-button {
@@ -288,7 +368,6 @@ h1 {
     isolation: isolate;
 }
 
-/* Wrapper que garante que os overlays cubram a imagem inteira Mesmo com Scroll/Zoom */
 .map-wrapper {
     position: relative;
     display: inline-block;
@@ -298,7 +377,7 @@ h1 {
     max-width: none;
     height: auto;
     display: block;
-    image-rendering: pixelated;
+    image-rendering: auto;
     filter: brightness(0.9) contrast(1.1);
 }
 
@@ -314,8 +393,7 @@ h1 {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 40;
-    /* Acima da img mas abaixo da câmera (45+) */
+    z-index: 40; /* Z-Index original que mantém personagens perfeitamente ofuscados nas bordas do cone*/
 }
 
 /* CCTV CAMERA OVERLAY */
@@ -442,7 +520,7 @@ h1 {
 /* Hotspots secretos não pulsam sozinhos */
 .hotspot:has(.secret) {
     animation: none;
-    opacity: 0.2;
+    opacity: 0.4; /* Aumentado de 0.2 */
 }
 
 .hotspot:has(.secret):hover {
@@ -491,12 +569,12 @@ h1 {
 
 /* Hotspot Secreto - Pequeno e Discreto */
 .hotspot-marker.secret {
-    width: 10px; /* Reduzido de 12px */
-    height: 10px; /* Reduzido de 12px */
-    background: radial-gradient(circle, rgba(60, 60, 70, 0.3), rgba(30, 30, 40, 0.2));
-    border: 1px solid rgba(80, 80, 90, 0.3);
-    box-shadow: 0 0 5px rgba(60, 60, 70, 0.2);
-    opacity: 0.5;
+    width: 14px; /* Aumentado de 10px */
+    height: 14px; /* Aumentado de 10px */
+    background: radial-gradient(circle, rgba(80, 80, 100, 0.5), rgba(40, 40, 60, 0.3));
+    border: 1px solid rgba(100, 100, 120, 0.5);
+    box-shadow: 0 0 8px rgba(80, 80, 100, 0.4);
+    opacity: 0.7; /* Aumentado de 0.5 */
     transition: all 0.3s ease;
 }
 
@@ -534,17 +612,17 @@ h1 {
     position: absolute;
     cursor: move;
     transition: all 0.2s ease;
-    z-index: 20;
+    z-index: 80;
     user-select: none;
 }
 
 .character-marker:hover {
     transform: scale(1.15);
-    z-index: 30;
+    z-index: 90;
 }
 
 .character-marker.selected {
-    z-index: 25;
+    z-index: 85;
 }
 
 .character-marker.selected .character-icon {
@@ -876,7 +954,6 @@ h1 {
     }
 }
 
-/* Flashlight System */
 #flashlightCanvas {
     position: absolute;
     top: 0;
@@ -884,8 +961,7 @@ h1 {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 18;
-    /* Above Fog and Characters, but below UI elements if needed */
+    z-index: 40; /* Retornado para trás dos jogadores */
     display: none;
 }
 
@@ -1416,3 +1492,150 @@ h1 {
 
 .terminal-status.error { color: #ff3b3b; animation: terminalBlink 0.5s infinite; }
 .terminal-status.success { color: #22c55e; animation: terminalBlink 1s infinite; }
+
+/* --- TIMING GAME (MOTOR) STYLES --- */
+.timing-meter-container {
+    width: 300px;
+    height: 40px;
+    background: #111;
+    border: 2px solid #333;
+    position: relative;
+    margin: 40px auto;
+    overflow: hidden;
+    box-shadow: inset 0 0 15px rgba(0,0,0,1);
+    border-radius: 4px;
+}
+
+.timing-target-zone {
+    position: absolute;
+    height: 100%;
+    width: 50px;
+    background: rgba(34, 197, 94, 0.4);
+    left: 125px; /* Centro do container de 300px */
+    border-left: 3px solid #22c55e;
+    border-right: 3px solid #22c55e;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+}
+
+.timing-needle {
+    position: absolute;
+    height: 100%;
+    width: 8px;
+    background: #ff3b3b;
+    left: 0;
+    box-shadow: 0 0 15px #ff3b3b;
+    z-index: 10;
+    border-radius: 2px;
+}
+
+/* --- FILE SYSTEM STYLES --- */
+.terminal-file-content {
+    background: #000;
+    color: #22c55e;
+    padding: 15px;
+    height: 300px;
+    overflow-y: auto;
+    font-family: 'VT323', monospace;
+    font-size: 1.6em;
+    line-height: 1.4;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    margin: 10px 0;
+    text-align: left;
+    white-space: pre-wrap;
+    box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+}
+
+.terminal-file-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.terminal-file-content::-webkit-scrollbar-track {
+    background: #050505;
+}
+
+.terminal-file-content::-webkit-scrollbar-thumb {
+    background: #22c55e;
+    border-radius: 2px;
+}
+
+.file-btn {
+    text-align: left;
+}
+
+/* --- MONSTER SYSTEM --- */
+.monster-marker {
+    position: absolute;
+    width: 250px; /* Maior que tokens de personagens */
+    height: 250px;
+    pointer-events: none;
+    z-index: 50; /* Z-index elevado para sobrepor elementos */
+    transform: translate(-50%, -50%);
+}
+
+.monster-visual {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.monster-visual img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 0 15px rgba(34, 197, 94, 0.4)); /* Sombra verde leve na imagem em si */
+    transition: opacity 0.5s ease-in-out, transform 0.2s ease;
+}
+
+/* Lógica do Monstro no Blackout */
+.night-mode .monster-visual img {
+    opacity: 0; /* Invisível por padrão no escuro */
+}
+
+.night-mode .monster-marker.illuminated .monster-visual img {
+    opacity: 1; /* Revelado por lanterna */
+}
+
+.monster-pulse-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    background: #22c55e;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 40px 20px rgba(34, 197, 94, 0.4);
+    pointer-events: none;
+    /* Efeito css de glow simulando o canvas (opicional/decorativo sob a img) */
+    animation: monsterPulseCss 5s infinite ease-in-out;
+    z-index: -1;
+}
+
+@keyframes monsterPulseCss {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 0.2; }
+    50% { transform: translate(-50%, -50%) scale(2); opacity: 0.6; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 0.2; }
+}
+
+/* === RADAR CCTV BLIPS === */
+.cctv-blip {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: #22c55e;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px #22c55e, 0 0 15px rgba(34, 197, 94, 0.6);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 55;
+    animation: fadeBlip 3s ease-out forwards;
+}
+
+/* O ghost/anomalia fade out, mas o real fica atualizando posição via JS e mantem opacidade com style inline */
+@keyframes fadeBlip {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    10% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; filter: brightness(1.5); }
+    30% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+    100% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+}
