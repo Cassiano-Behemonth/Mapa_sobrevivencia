@@ -2307,7 +2307,7 @@ function switchTerminalScreen(screenKey) {
             if (!hintEl) {
                 hintEl = document.createElement('div');
                 hintEl.id = 'loginHint';
-                hintEl.style.cssText = 'margin-top:10px; font-family:monospace; font-size:0.75em; color:rgba(34,197,94,0.5); letter-spacing:2px; text-align:center;';
+                hintEl.style.cssText = 'margin-top:15px; font-family:monospace; font-size:1.4em; color:rgba(34,197,94,0.9); font-weight:bold; letter-spacing:3px; text-align:center; text-shadow: 0 0 10px rgba(34,197,94,0.4);';
                 input.parentNode.insertBefore(hintEl, input.nextSibling);
             }
             hintEl.textContent = hints[currentTerminalContext] || '';
@@ -2321,16 +2321,16 @@ function switchTerminalScreen(screenKey) {
         } else if (screenKey === 'FILES') {
             renderTerminalFiles();
         } else if (screenKey === 'MENU') {
-            // Mostrar botão de arquivos se autorizado (qualquer contexto)
+            // Mostrar botão de arquivos se autorizado e NÃO for o terminal Geral
+            // (Para evitar mostrar documentos de lore indesejados no primeiro terminal)
             const isAuth = currentTerminalContext === 'GENERAL' ? isTerminalAuthorizedKain
                 : currentTerminalContext === 'LAB' ? isTerminalAuthorizedJudas
                     : isTerminalAuthorizedAdam;
-            // GENERAL mostra status de energia; outros mostram arquivos
-            document.getElementById('terminalBtnFiles').style.display = isAuth ? 'block' : 'none';
-            if (currentTerminalContext === 'GENERAL' && isAuth) {
-                document.getElementById('terminalBtnFiles').textContent = '> STATUS DE ENERGIA';
-                document.getElementById('terminalBtnFiles').onclick = () => renderEnergyStatus();
+            
+            if (currentTerminalContext === 'GENERAL') {
+                document.getElementById('terminalBtnFiles').style.display = 'none';
             } else {
+                document.getElementById('terminalBtnFiles').style.display = isAuth ? 'block' : 'none';
                 document.getElementById('terminalBtnFiles').textContent = '> ARQUIVOS';
                 document.getElementById('terminalBtnFiles').onclick = () => switchTerminalScreen('FILES');
             }
@@ -2393,46 +2393,6 @@ document.addEventListener('keydown', (e) => {
 
 // --- CAMERA STATUS DASHBOARD ---
 // --- ENERGY STATUS (Terminal GENERAL) ---
-function renderEnergyStatus() {
-    const list = document.getElementById('fileList');
-    list.innerHTML = '';
-
-    const sectors = ['setor_1','setor_2','setor_3','setor_4','setor_5','setor_6'];
-    const title = document.createElement('div');
-    title.style.cssText = 'color:#22c55e; font-family:monospace; font-size:0.8em; margin-bottom:12px; letter-spacing:2px; border-bottom:1px solid rgba(34,197,94,0.3); padding-bottom:8px;';
-    title.textContent = 'STATUS DE ENERGIA — COMPLEXO OMEGA';
-    list.appendChild(title);
-
-    sectors.forEach(sid => {
-        const data = mapHierarchy[sid];
-        if (!data) return;
-
-        const isOffline = isBlackoutActive;
-        const hasLight = isLightsOn;
-
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid rgba(34,197,94,0.1); font-family:monospace; font-size:0.78em;';
-
-        const statusColor = isOffline ? '#ef4444' : (hasLight ? '#22c55e' : '#f59e0b');
-        const statusLabel = isOffline ? 'BLACKOUT' : (hasLight ? 'NOMINAL' : 'REDUZIDA');
-
-        row.innerHTML = `
-            <span style="color:#8ec9a0;">${data.icon} ${data.name}</span>
-            <span style="color:${statusColor}; font-weight:bold;">● ${statusLabel}</span>
-        `;
-        list.appendChild(row);
-    });
-
-    // Botão de voltar
-    const back = document.createElement('button');
-    back.className = 'terminal-btn small';
-    back.style.marginTop = '12px';
-    back.textContent = '< VOLTAR';
-    back.onclick = () => switchTerminalScreen('MENU');
-    list.appendChild(back);
-
-    switchTerminalScreen('FILES');
-}
 
 function renderTerminalCameras() {
     const grid = document.getElementById('cameraStatusGrid');
