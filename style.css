@@ -974,6 +974,12 @@ h1 {
     transition: transform 0.2s ease, left 0.2s ease, top 0.2s ease;
 }
 
+.character-marker.dragging,
+.token-marker.dragging {
+    transition: none !important;
+    z-index: 1000 !important;
+}
+
 /* Fog system removed */
 
 /* Fog Control Button */
@@ -1638,4 +1644,236 @@ h1 {
     10% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; filter: brightness(1.5); }
     30% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
     100% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+}
+
+/* ========================================================================
+   MINIJOGO DO QUADRO (CABALA)
+   ======================================================================== */
+.board-window {
+    width: 800px;
+    border-color: #ffd700;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.15);
+}
+
+.board-body {
+    background: #0a0a0a;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+
+.board-area {
+    display: flex;
+    gap: 20px;
+    height: 500px;
+}
+
+.board-surface {
+    width: 600px;
+    height: 500px;
+    background: #fff9c4; /* Amarelo claro/creme */
+    border: 10px solid #3d2b1f; /* Moldura de madeira escura */
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
+    cursor: default;
+}
+
+.board-slot {
+    position: absolute;
+    width: 80px;
+    height: 45px;
+    border: 2px dashed rgba(61, 43, 31, 0.3);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.board-slot::after {
+    content: '';
+    width: 4px;
+    height: 4px;
+    background: rgba(61, 43, 31, 0.2);
+    border-radius: 50%;
+}
+
+.board-background-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2em;
+    color: rgba(0,0,0,0.03);
+    font-weight: bold;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    text-align: center;
+}
+
+.board-tiles-pool {
+    flex: 1;
+    background: #151515;
+    border: 1px solid #3d3426;
+    padding: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 10px;
+    overflow-y: auto;
+}
+
+.hebrew-tile, .name-tile {
+    min-width: 80px;
+    height: 45px;
+    padding: 0 10px;
+    background: #e6e6e6;
+    border: 2px solid #ccc;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #333;
+    cursor: grab;
+    user-select: none;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+    transition: transform 0.1s, box-shadow 0.1s;
+    z-index: 100;
+    text-transform: uppercase;
+    font-family: 'Georgia', serif;
+}
+
+.hebrew-tile:active, .name-tile:active {
+    cursor: grabbing;
+    transform: scale(1.1);
+    box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
+}
+
+.hebrew-tile.placed, .name-tile.placed {
+    position: absolute;
+    transform: translate(-50%, -50%); /* Centralizar no ponto exato */
+}
+
+.hebrew-tile.correct, .name-tile.correct {
+    border-color: #22c55e;
+    background: #f0fff0;
+    box-shadow: 0 0 15px rgba(34, 197, 94, 0.6);
+}
+
+.board-footer {
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #333;
+    padding-top: 15px;
+}
+
+.board-star-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10; /* Atrás das peças (100) */
+    overflow: visible;
+}
+
+.star-line {
+    fill: none;
+    stroke: #ff3b3b; /* Vermelho sangue/alerta */
+    stroke-width: 3;
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
+    filter: drop-shadow(0 0 5px rgba(255, 59, 59, 0.5));
+    transition: stroke-dashoffset 2s ease-in-out;
+}
+
+.solved .star-line {
+    stroke-dashoffset: 0;
+}
+
+.paraise-map-text {
+    position: absolute;
+    top: 15%;
+    left: 48%;
+    font-size: 4em;
+    font-family: 'Courier New', monospace;
+    font-weight: 900;
+    color: #ff0000;
+    /* Efeito de Sangue: Sombras profundas e escorridas (long offset Y) */
+    text-shadow: 
+        1px 1px 2px #4b0000,
+        0 0 10px #ff0000,
+        0 15px 15px #8b0000, /* Escorrimento 1 */
+        -2px 30px 20px #4b0000, /* Escorrimento 2 (mais escuro) */
+        2px 45px 30px rgba(75, 0, 0, 0.6); /* Sangue coagulado/fundo */
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+    transition: opacity 1s ease-in-out, filter 1s ease-in-out;
+    z-index: 10;
+    pointer-events: none;
+    letter-spacing: 25px;
+    filter: blur(0.2px) contrast(1.5) brightness(1.2);
+    mix-blend-mode: screen;
+}
+
+.paraise-map-text.hebrew {
+    letter-spacing: 5px; /* Hebraico precisa de menos espaço para não quebrar a leitura */
+    font-size: 4.5em; /* Ligeiramente maior para compensar o formato das letras */
+}
+
+.paraise-map-text.visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1); /* Estático, sem pulsar */
+    /* Removido animation para evitar o movimento das letras */
+}
+
+@keyframes bloodPulse {
+    0% { 
+        text-shadow: 1px 1px 2px #4b0000, 0 15px 15px #8b0000;
+        filter: brightness(1) drop-shadow(0 0 5px #ff0000);
+    }
+    100% { 
+        text-shadow: 2px 2px 5px #4b0000, 0 25px 30px #ff0000, 0 50px 40px #4b0000;
+        filter: brightness(1.6) drop-shadow(0 0 15px #ff0000);
+    }
+}
+
+.board-victory-msg {
+    color: #ffd700 !important;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    animation: victoryPulse 1s infinite alternate;
+}
+
+@keyframes victoryPulse {
+    from { opacity: 0.8; }
+    to { opacity: 1; transform: scale(1.02); }
+}
+
+/* OVERRIDES PARA HOTSPOTS MAIS DISCRETOS */
+.hotspot-marker {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 20px !important;
+    height: 20px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.hotspot-marker::after {
+    width: 6px !important;
+    height: 6px !important;
+    background: #22c55e !important;
+    box-shadow: 0 0 8px #22c55e, 0 0 15px rgba(34, 197, 94, 0.5) !important;
+    opacity: 1 !important;
 }

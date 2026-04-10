@@ -96,7 +96,17 @@ const mapHierarchy = {
         imgExt: '.png',
         hasDayNight: true,
         icon: '🛏️',
-        description: 'Acomodações para o pessoal de longo prazo.'
+        description: 'Acomodações para o pessoal de longo prazo.',
+        hotspots: [
+            {
+                id: 'bedroom_board',
+                title: '🖼️ Analisar Quadro de Avisos',
+                position: { top: '30%', left: '46%' },
+                action: 'openBoardMinigame',
+                isSecret: true,
+                hint: 'o símbolo da vida e do mestre'
+            }
+        ]
     },
     setor_6: {
         id: 'setor_6',
@@ -174,6 +184,7 @@ let isTerminalBlockedJudas = localStorage.getItem('terminalBlockedMalak_judas') 
 let isSector3EnergyRestored = localStorage.getItem('sector3EnergyRestored') === 'true';
 
 let currentTerminalContext = 'GENERAL'; // 'GENERAL' (kain) ou 'MEDICAL' (adam)
+let isBoardSolved = localStorage.getItem('rpgBoardSolved') === 'true';
 
 // Flashlight Flicker Timer (10 minutes)
 setInterval(() => {
@@ -438,11 +449,36 @@ function updateBreadcrumb() {
 
     // Update container class for darkness/blackout
     const mapContainer = document.getElementById('mapContainer');
-    if (isBlackoutActive) { // remover o || !isLightsOn daqui
+    if (isBlackoutActive) {
         mapContainer.classList.add('night-mode');
         setTimeout(initFlashlight, 100);
     } else {
         mapContainer.classList.remove('night-mode');
+    }
+
+    // Controle do Texto Radioativo "Paraiso" no Mapa
+    const paraiseText = document.getElementById('paraiseMapText');
+    if (paraiseText) {
+        if (isBoardSolved && currentLocationId === 'setor_5') {
+            paraiseText.classList.add('visible');
+            updateParaiseTextContent(); // Sincronizar idioma ao entrar no setor
+        } else {
+            paraiseText.classList.remove('visible');
+        }
+    }
+}
+
+function updateParaiseTextContent() {
+    const paraiseText = document.getElementById('paraiseMapText');
+    if (!paraiseText) return;
+
+    // Se houver qualquer tipo de escuridão (Blackout ativado OU luzes apagadas)
+    if (isBlackoutActive || !isLightsOn) {
+        paraiseText.textContent = 'PARAISO';
+        paraiseText.classList.remove('hebrew');
+    } else {
+        paraiseText.textContent = 'גַּן עֵדֶן';
+        paraiseText.classList.add('hebrew');
     }
 }
 
@@ -1057,6 +1093,18 @@ function focusCharacter(charId) {
 // MULTI-SELECTION SYSTEM
 // ========================================================================
 
+function refreshDragCache() {
+    dragGroupElements.characters = Array.from(selectedCharacters).map(id => ({
+        data: characters.find(c => c.id === id),
+        el: document.getElementById(`char-${id}`)
+    })).filter(item => item.data && item.el);
+
+    dragGroupElements.tokens = Array.from(document.querySelectorAll('.token-marker[data-selected="true"]')).map(el => ({
+        data: tokens.find(t => t.id === parseInt(el.id.replace('token-', ''))),
+        el: el
+    })).filter(item => item.data && item.el);
+}
+
 function setupMultiSelection() {
     const mapContainer = document.getElementById('mapContainer');
     const mapImage = document.getElementById('mapImage');
@@ -1092,22 +1140,30 @@ function setupMultiSelection() {
         cachedMapRect = mapImage.getBoundingClientRect(); // Cache inicial
 
         // Se clicou em um TOKEN
-        if (clickedToken && clickedToken.dataset.selected === 'true') {
-            // Token selecionado - iniciar drag do grupo (personagens + tokens)
+        if (clickedToken) {
+            const tokenId = parseInt(clickedToken.id.replace('token-', ''));
+            const tokenData = tokens.find(t => t.id === tokenId);
+            
+            // Se já está selecionado ou se clicou em um token (selecionar se não estiver)
+            if (clickedToken.dataset.selected !== 'true') {
+                if (!e.ctrlKey && !e.metaKey) deselectAll();
+                selectToken(clickedToken);
+            }
+
             isDraggingGroup = true;
             isSelecting = false;
             dragGroupStart = { x: e.clientX, y: e.clientY };
+            
+            // Resetar deltas para acumulação limpa
+            dragLatestDelta.x = 0;
+            dragLatestDelta.y = 0;
 
             // CACHE para performance
-            dragGroupElements.characters = Array.from(selectedCharacters).map(id => ({
-                data: characters.find(c => c.id === id),
-                el: document.getElementById(`char-${id}`)
-            })).filter(item => item.data && item.el);
+            refreshDragCache();
 
-            dragGroupElements.tokens = Array.from(document.querySelectorAll('.token-marker[data-selected="true"]')).map(el => ({
-                data: tokens.find(t => t.id === parseInt(el.id.replace('token-', ''))),
-                el: el
-            })).filter(item => item.data && item.el);
+            // Adicionar classe de drag para remover transições
+            dragGroupElements.characters.forEach(item => item.el.classList.add('dragging'));
+            dragGroupElements.tokens.forEach(item => item.el.classList.add('dragging'));
 
             mapContainer.style.cursor = 'grabbing';
             return;
@@ -1123,40 +1179,26 @@ function setupMultiSelection() {
                 return;
             }
 
-            // Se já está selecionado, iniciar drag do grupo
-            if (selectedCharacters.has(charId)) {
-                isDraggingGroup = true;
-                isSelecting = false;
-                dragGroupStart = { x: e.clientX, y: e.clientY };
-
-                // CACHE para performance
-                dragGroupElements.characters = Array.from(selectedCharacters).map(id => ({
-                    data: characters.find(c => c.id === id),
-                    el: document.getElementById(`char-${id}`)
-                })).filter(item => item.data && item.el);
-
-                dragGroupElements.tokens = Array.from(document.querySelectorAll('.token-marker[data-selected="true"]')).map(el => ({
-                    data: tokens.find(t => t.id === parseInt(el.id.replace('token-', ''))),
-                    el: el
-                })).filter(item => item.data && item.el);
-
-                mapContainer.style.cursor = 'grabbing';
-                return;
+            // Se não está selecionado, selecionar só ele
+            if (!selectedCharacters.has(charId)) {
+                deselectAll();
+                selectCharacter(charId);
             }
 
-            // Se não está selecionado, selecionar só ele e iniciar drag
-            deselectAll();
-            selectCharacter(charId);
             isDraggingGroup = true;
             isSelecting = false;
             dragGroupStart = { x: e.clientX, y: e.clientY };
+            
+            // Resetar deltas
+            dragLatestDelta.x = 0;
+            dragLatestDelta.y = 0;
 
-            // CACHE para performance (só o clicado)
-            dragGroupElements.characters = [{
-                data: characters.find(c => c.id === charId),
-                el: clickedChar
-            }];
-            dragGroupElements.tokens = [];
+            // CACHE para performance
+            refreshDragCache();
+
+            // Adicionar classe de drag
+            dragGroupElements.characters.forEach(item => item.el.classList.add('dragging'));
+            dragGroupElements.tokens.forEach(item => item.el.classList.add('dragging'));
 
             mapContainer.style.cursor = 'grabbing';
             return;
@@ -1186,15 +1228,15 @@ function setupMultiSelection() {
     });
 
     document.addEventListener('mousemove', (e) => {
-        // Se está arrastando personagens
+        // Se está arrastando personagens/tokens
         if (isDraggingGroup && !isSelecting) {
             e.preventDefault();
             const deltaX = e.clientX - dragGroupStart.x;
             const deltaY = e.clientY - dragGroupStart.y;
 
-            // Converter para percentual usando o RECT cacheado
-            dragLatestDelta.x = (deltaX / cachedMapRect.width) * 100;
-            dragLatestDelta.y = (deltaY / cachedMapRect.height) * 100;
+            // ACUMULAR delta em percentual usando o RECT cacheado
+            dragLatestDelta.x += (deltaX / cachedMapRect.width) * 100;
+            dragLatestDelta.y += (deltaY / cachedMapRect.height) * 100;
             dragIsDirty = true;
 
             // Se o loop da lanterna não estiver rodando e o de drag também não, iniciar
@@ -1231,6 +1273,11 @@ function setupMultiSelection() {
     document.addEventListener('mouseup', (e) => {
         if (isDraggingGroup) {
             isDraggingGroup = false;
+            
+            // Remover classe de dragging para reativar transições
+            dragGroupElements.characters.forEach(item => item.el.classList.remove('dragging'));
+            dragGroupElements.tokens.forEach(item => item.el.classList.remove('dragging'));
+            
             dragGroupElements = { characters: [], tokens: [] }; // Limpar cache
             mapContainer.style.cursor = '';
             saveCurrentLocationCharacters();
@@ -1368,14 +1415,18 @@ function deselectAll() {
     });
 }
 
-function moveSelectedCharacters(deltaX, deltaY) {
+function moveSelectedElements(deltaX, deltaY) {
     // Mover PERSONAGENS usando o CACHE
     dragGroupElements.characters.forEach(item => {
         const char = item.data;
         const marker = item.el;
 
-        char.x = Math.max(0, Math.min(100, char.x + deltaX));
-        char.y = Math.max(0, Math.min(100, char.y + deltaY));
+        char.x = char.x + deltaX; // Removido clamp temporário para evitar travamentos nas bordas durante o delta
+        char.y = char.y + deltaY;
+        
+        // Clamp final suave
+        char.x = Math.max(0, Math.min(100, char.x));
+        char.y = Math.max(0, Math.min(100, char.y));
 
         marker.style.left = `${char.x}%`;
         marker.style.top = `${char.y}%`;
@@ -1386,14 +1437,16 @@ function moveSelectedCharacters(deltaX, deltaY) {
         const token = item.data;
         const tokenEl = item.el;
 
-        token.x = Math.max(0, Math.min(100, token.x + deltaX));
-        token.y = Math.max(0, Math.min(100, token.y + deltaY));
+        token.x = token.x + deltaX;
+        token.y = token.y + deltaY;
+        
+        // Clamp final suave
+        token.x = Math.max(0, Math.min(100, token.x));
+        token.y = Math.max(0, Math.min(100, token.y));
 
         tokenEl.style.left = `${token.x}%`;
         tokenEl.style.top = `${token.y}%`;
     });
-
-    // Removido drawFlashlight sincronizado pois o loop de requestAnimationFrame é mais suave
 }
 
 function deleteSelected() {
@@ -1483,81 +1536,12 @@ function renderToken(token) {
 }
 
 function makeTokenDraggable(tokenEl, token) {
-    let isDragging = false;
-    let hasMoved = false;
-    let startX, startY, initialLeft, initialTop;
-
-    // Mousedown - Iniciar drag
-    tokenEl.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return;
-
-        // Se já está selecionado com outros, não arrastar individualmente
-        // Deixa o sistema de grupo lidar com isso
-        if (tokenEl.dataset.selected === 'true' && (selectedCharacters.size > 0 || hasMultipleSelectedTokens())) {
-            return;
-        }
-
-        hasMoved = false;
-        isDragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-
-        const rect = tokenEl.getBoundingClientRect();
-        const container = document.getElementById('mapContainer').getBoundingClientRect();
-        initialLeft = rect.left - container.left;
-        initialTop = rect.top - container.top;
-
-        e.preventDefault();
-        e.stopPropagation();
-    });
-
-    // Click - Selecionar (só se não arrastou)
+    // Agora o arrasto é tratado globalmente em setupMultiSelection.
+    // Esta função pode ser mantida para inicializar estados se necessário,
+    // ou simplesmente removida se não houver lógica específica por token.
     tokenEl.addEventListener('click', (e) => {
-        if (!hasMoved) {
-            e.stopPropagation();
-            selectToken(tokenEl);
-        }
-    });
-
-    document.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-
-        // Se moveu mais de 3 pixels, considera como drag
-        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-            hasMoved = true;
-            tokenEl.style.opacity = '0.7';
-        }
-
-        const newLeft = initialLeft + dx;
-        const newTop = initialTop + dy;
-
-        tokenEl.style.left = newLeft + 'px';
-        tokenEl.style.top = newTop + 'px';
-    });
-
-    document.addEventListener('mouseup', () => {
-        if (isDragging) {
-            isDragging = false;
-            tokenEl.style.opacity = '1';
-
-            if (hasMoved) {
-                // Update token position
-                const mapImage = document.getElementById('mapImage');
-                const rect = mapImage.getBoundingClientRect();
-                const tokenRect = tokenEl.getBoundingClientRect();
-
-                token.x = ((tokenRect.left + tokenRect.width / 2 - rect.left) / rect.width) * 100;
-                token.y = ((tokenRect.top + tokenRect.height / 2 - rect.top) / rect.height) * 100;
-
-                tokenEl.style.left = `${token.x}%`;
-                tokenEl.style.top = `${token.y}%`;
-            }
-
-            hasMoved = false;
-        }
+        e.stopPropagation();
+        selectToken(tokenEl);
     });
 }
 
@@ -1633,6 +1617,8 @@ function toggleBlackout() {
     } else {
         mapContainer.classList.remove('night-mode');
     }
+    
+    updateParaiseTextContent();
 }
 
 // ========================================================================
@@ -1646,6 +1632,8 @@ function toggleLights() {
     // Recarregar imagem do mapa com o novo sufixo
     const locationId = getCurrentLocation();
     loadLocation(locationId);
+    
+    updateParaiseTextContent();
 }
 
 // ========================================================================
@@ -1759,7 +1747,10 @@ function initFlashlight() {
 function updateDragOnly() {
     if (isDraggingGroup && !flashlightActive) {
         if (dragIsDirty) {
-            moveSelectedCharacters(dragLatestDelta.x, dragLatestDelta.y);
+            moveSelectedElements(dragLatestDelta.x, dragLatestDelta.y);
+            // Resetar acumulador após aplicar o movimento no frame
+            dragLatestDelta.x = 0;
+            dragLatestDelta.y = 0;
             dragIsDirty = false;
         }
         requestAnimationFrame(updateDragOnly);
@@ -1772,7 +1763,10 @@ function flashlightLoop() {
     if (isBlackoutActive && flashlightActive) {
         // Se houve movimento, aplica no frame correto
         if (dragIsDirty) {
-            moveSelectedCharacters(dragLatestDelta.x, dragLatestDelta.y);
+            moveSelectedElements(dragLatestDelta.x, dragLatestDelta.y);
+            // Resetar acumulador
+            dragLatestDelta.x = 0;
+            dragLatestDelta.y = 0;
             dragIsDirty = false;
         }
 
@@ -2905,4 +2899,212 @@ function openContextMenu(e) {
 function closeContextMenu() {
     const menu = document.getElementById('mapOverlayMenu');
     if (menu) menu.classList.remove('active');
+}
+
+// ========================================================================
+// MINIJOGO DO QUADRO (SETOR 5) - PROTOCOLO CABALA
+// ========================================================================
+
+const boardNames = ['GAEL', 'CALEB', 'LEVI', 'JUAN', 'ANNE', 'EVA', 'JOSHUA'];
+
+function openBoardMinigame() {
+    terminalActive = true;
+    document.getElementById('boardMinigame').style.display = 'flex';
+    initBoard();
+}
+
+function closeBoardMinigame() {
+    terminalActive = false;
+    document.getElementById('boardMinigame').style.display = 'none';
+}
+
+function initBoard() {
+    const pool = document.getElementById('boardTilesPool');
+    const surface = document.getElementById('boardSurface');
+    const status = document.getElementById('boardStatus');
+
+    if (isBoardSolved) {
+        status.textContent = 'ESTRELA DA SALVAÇÃO CONCLUÍDA - ESCOTILHA LIBERADA';
+        status.classList.add('board-victory-msg');
+        surface.classList.add('solved');
+    } else {
+        status.textContent = 'ORGANIZE OS NOMES NA ESTRELA PARA REVELAR O CAMINHO';
+        status.classList.remove('board-victory-msg');
+        surface.classList.remove('solved');
+    }
+
+    pool.innerHTML = '';
+    surface.querySelectorAll('.name-tile, .board-slot').forEach(t => t.remove());
+
+    // Renderizar indicadores de onde os nomes devem ser encaixados (slots)
+    const starPoints = [
+        { id: 'center', x: 300, y: 250 },
+        { id: 'top', x: 300, y: 100 },
+        { id: 'tr', x: 430, y: 175 },
+        { id: 'br', x: 430, y: 325 },
+        { id: 'bottom', x: 300, y: 400 },
+        { id: 'bl', x: 170, y: 325 },
+        { id: 'tl', x: 170, y: 175 }
+    ];
+
+    starPoints.forEach(p => {
+        const slot = document.createElement('div');
+        slot.className = 'board-slot';
+        slot.style.left = p.x + 'px';
+        slot.style.top = p.y + 'px';
+        surface.appendChild(slot);
+    });
+
+    if (isBoardSolved) {
+        const solvedLayout = [
+            { name: 'JOSHUA', x: 300, y: 250 }, // Centro
+            { name: 'GAEL', x: 300, y: 100 },   // Topo
+            { name: 'CALEB', x: 430, y: 175 },  // Topo-Direita
+            { name: 'LEVI', x: 430, y: 325 },   // Baixo-Direita
+            { name: 'JUAN', x: 300, y: 400 },   // Baixo
+            { name: 'ANNE', x: 170, y: 325 },   // Baixo-Esquerda
+            { name: 'EVA', x: 170, y: 175 }     // Topo-Esquerda
+        ];
+
+        solvedLayout.forEach(item => {
+            const tile = createNameTile(item.name);
+            tile.classList.add('correct', 'placed');
+            tile.style.left = item.x + 'px';
+            tile.style.top = item.y + 'px';
+            surface.appendChild(tile);
+        });
+    } else {
+        const shuffled = [...boardNames].sort(() => Math.random() - 0.5);
+        shuffled.forEach(name => {
+            const tile = createNameTile(name);
+            pool.appendChild(tile);
+        });
+    }
+}
+
+function createNameTile(name) {
+    const tile = document.createElement('div');
+    tile.className = 'name-tile';
+    tile.textContent = name;
+    if (!isBoardSolved) makeNameTileDraggable(tile);
+    return tile;
+}
+
+function makeNameTileDraggable(tile) {
+    let isDragging = false;
+    let startX, startY, initialX, initialY;
+
+    tile.addEventListener('mousedown', (e) => {
+        if (isBoardSolved) return;
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        const rect = tile.getBoundingClientRect();
+        const boardRect = document.getElementById('boardSurface').getBoundingClientRect();
+        
+        if (tile.parentElement.id === 'boardTilesPool') {
+            initialX = rect.left + rect.width / 2 - boardRect.left;
+            initialY = rect.top + rect.height / 2 - boardRect.top;
+            document.getElementById('boardSurface').appendChild(tile);
+            tile.classList.add('placed');
+        } else {
+            initialX = tile.offsetLeft;
+            initialY = tile.offsetTop;
+        }
+        
+        tile.style.left = initialX + 'px';
+        tile.style.top = initialY + 'px';
+        tile.style.zIndex = 1000;
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        tile.style.left = (initialX + dx) + 'px';
+        tile.style.top = (initialY + dy) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        tile.style.zIndex = 100;
+        
+        // Snap to points
+        const points = [
+            { id: 'center', x: 300, y: 250 },
+            { id: 'top', x: 300, y: 100 },
+            { id: 'tr', x: 430, y: 175 },
+            { id: 'br', x: 430, y: 325 },
+            { id: 'bottom', x: 300, y: 400 },
+            { id: 'bl', x: 170, y: 325 },
+            { id: 'tl', x: 170, y: 175 }
+        ];
+        
+        const currentX = tile.offsetLeft;
+        const currentY = tile.offsetTop;
+        
+        let foundSnap = false;
+        for (const p of points) {
+            const dist = Math.sqrt(Math.pow(currentX - p.x, 2) + Math.pow(currentY - p.y, 2));
+            if (dist < 40) {
+                tile.style.left = p.x + 'px';
+                tile.style.top = p.y + 'px';
+                tile.dataset.slotId = p.id;
+                foundSnap = true;
+                break;
+            }
+        }
+        
+        if (!foundSnap) {
+            delete tile.dataset.slotId;
+        }
+        
+        checkBoardVictory();
+    });
+}
+
+function checkBoardVictory() {
+    if (isBoardSolved) return;
+    const tiles = document.querySelectorAll('#boardSurface .name-tile');
+    
+    // Joshua deve estar no centro
+    const joshuaTile = Array.from(tiles).find(t => t.textContent === 'JOSHUA');
+    if (!joshuaTile || joshuaTile.dataset.slotId !== 'center') return;
+    
+    // Os outros 6 nomes devem estar em QUALQUER um dos 6 slots de pontas
+    const otherNames = ['GAEL', 'CALEB', 'LEVI', 'JUAN', 'ANNE', 'EVA'];
+    const pointSlots = ['top', 'tr', 'br', 'bottom', 'bl', 'tl'];
+    
+    let occupiedPoints = 0;
+    tiles.forEach(t => {
+        if (otherNames.includes(t.textContent) && pointSlots.includes(t.dataset.slotId)) {
+            occupiedPoints++;
+        }
+    });
+
+    if (occupiedPoints === 6) {
+        isBoardSolved = true;
+        localStorage.setItem('rpgBoardSolved', 'true');
+        isTerminalAuthorizedJudas = true;
+        localStorage.setItem('terminalAuthorizedMalak_judas', 'true');
+        
+        const surface = document.getElementById('boardSurface');
+        surface.classList.add('solved');
+
+        // Ativar texto radioativo no mapa imediatamente
+        const paraiseText = document.getElementById('paraiseMapText');
+        if (paraiseText) {
+            updateParaiseTextContent();
+            paraiseText.classList.add('visible');
+        }
+
+        const status = document.getElementById('boardStatus');
+        status.textContent = 'ELE NOS SALVARÁ - ESCOTILHA LIBERADA';
+        status.classList.add('board-victory-msg');
+        document.querySelectorAll('#boardSurface .name-tile').forEach(t => t.classList.add('correct'));
+    }
 }

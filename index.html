@@ -68,6 +68,9 @@
 
                         <canvas id="flashlightCanvas"></canvas>
                         <img src="bunker_geral.png" alt="ESQUEMA TÉCNICO" class="map-image" id="mapImage">
+                        
+                        <!-- EFEITO RADIOATIVO NO MAPA -->
+                        <div id="paraiseMapText" class="paraise-map-text">PARAISO</div>
                     </div>
 
                     <div class="selection-box" id="selectionBox"></div>
@@ -212,6 +215,39 @@
                         <div class="terminal-scanlines"></div>
                     </div>
                     <button class="terminal-btn small" onclick="switchTerminalScreen('FILES')">VOLTAR À LISTA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MINIJOGO DO QUADRO (SETOR 5) -->
+    <div class="terminal-overlay" id="boardMinigame">
+        <div class="terminal-window board-window">
+            <div class="terminal-header">
+                <span class="terminal-title">PROTOCOLO CABALA - QUADRO DE ANÁLISE</span>
+                <button class="terminal-close" onclick="closeBoardMinigame()">✕ SAIR</button>
+            </div>
+            <div class="terminal-body board-body">
+                <div class="board-area">
+                    <div class="board-surface" id="boardSurface">
+                        <!-- Letras serão geradas aqui -->
+                        <div class="board-background-hint">A Estrela da Salvação</div>
+                        
+                        <!-- Linhas da Estrela (SVG) - Movido para baixo das letras no Z-Index -->
+                        <svg class="board-star-svg" id="boardStarSvg" viewBox="0 0 600 500">
+                            <!-- Triângulo 1 -->
+                            <path class="star-line" d="M300,100 L430,325 L170,325 Z" />
+                            <!-- Triângulo 2 -->
+                            <path class="star-line" d="M300,400 L170,175 L430,175 Z" />
+                        </svg>
+                    </div>
+                    <div class="board-tiles-pool" id="boardTilesPool">
+                        <!-- Peças para arrastar -->
+                    </div>
+                </div>
+                <div class="board-footer">
+                    <div id="boardStatus" class="terminal-status">ORGANIZE AS LETRAS PARA REVELAR O SÍMBOLO</div>
+                    <button class="terminal-btn small" onclick="closeBoardMinigame()">ABORTAR</button>
                 </div>
             </div>
         </div>
