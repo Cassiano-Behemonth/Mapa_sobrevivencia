@@ -64,9 +64,7 @@ const mapHierarchy = {
                 title: '⚙️ Painel de Manutenção de Energia',
                 position: { bottom: '30%', left: '10%' },
                 action: 'openTimingMinigame',
-                isOneTime: true,
-                nightOnly: true, // Só aparece no escuro
-                hideIf: 'isSector3EnergyRestored'
+                nightOnly: true // Só aparece no escuro
             }
         ]
     },
@@ -105,6 +103,21 @@ const mapHierarchy = {
                 action: 'openBoardMinigame',
                 isSecret: true,
                 hint: 'o símbolo da vida e do mestre'
+            },
+            {
+                id: 'dormitory_note',
+                title: '📄 Ler Bilhete Solto',
+                position: { bottom: '20%', right: '20%' },
+                action: 'openDormitoryNote',
+                dayOnly: true, // Só aparece com luz acesa
+                isSecret: false
+            },
+            {
+                id: 'setor_5_hatch',
+                title: '🚢 Escotilha de Acesso [ABERTA]',
+                position: { top: '50%', left: '50%' },
+                showIf: 'isBoardSolved', // Só aparece após resolver o quadro
+                action: null // Apenas visual por enquanto
             }
         ]
     },
@@ -175,16 +188,166 @@ let flashlightState = {
 let terminalSequence = [];
 let userSequence = [];
 let terminalActive = false;
-let isTerminalAuthorizedKain = localStorage.getItem('terminalAuthorizedMalak_kain') === 'true';
-let isTerminalAuthorizedAdam = localStorage.getItem('terminalAuthorizedMalak_adam') === 'true';
-let isTerminalAuthorizedJudas = localStorage.getItem('terminalAuthorizedMalak_judas') === 'true';
-let isTerminalBlockedKain = localStorage.getItem('terminalBlockedMalak_kain') === 'true';
-let isTerminalBlockedAdam = localStorage.getItem('terminalBlockedMalak_adam') === 'true';
-let isTerminalBlockedJudas = localStorage.getItem('terminalBlockedMalak_judas') === 'true';
-let isSector3EnergyRestored = localStorage.getItem('sector3EnergyRestored') === 'true';
+var isTerminalAuthorizedKain = localStorage.getItem('terminalAuthorizedMalak_kain') === 'true';
+var isTerminalAuthorizedAdam = localStorage.getItem('terminalAuthorizedMalak_adam') === 'true';
+var isTerminalAuthorizedJudas = localStorage.getItem('terminalAuthorizedMalak_judas') === 'true';
+var isTerminalBlockedKain = localStorage.getItem('terminalBlockedMalak_kain') === 'true';
+var isTerminalBlockedAdam = localStorage.getItem('terminalBlockedMalak_adam') === 'true';
+var isTerminalBlockedJudas = localStorage.getItem('terminalBlockedMalak_judas') === 'true';
+var isSector3EnergyRestored = localStorage.getItem('sector3EnergyRestored') === 'true';
 
-let currentTerminalContext = 'GENERAL'; // 'GENERAL' (kain) ou 'MEDICAL' (adam)
-let isBoardSolved = localStorage.getItem('rpgBoardSolved') === 'true';
+var currentTerminalContext = 'GENERAL'; // 'GENERAL' (kain) ou 'MEDICAL' (adam)
+var isBoardSolved = localStorage.getItem('rpgBoardSolved') === 'true';
+var isCamerasOffline = localStorage.getItem('rpgCamerasOffline') === 'true';
+
+// ========================================================================
+// AUDIO SYSTEM
+// ========================================================================
+const AudioManager = {
+    sounds: {
+        lanterna: new Audio('lanterna.mp3'),
+        blackout: new Audio('blackout.mp3'),
+        gerador: new Audio('gerador.mp3'),
+        interruptor: new Audio('interruptor.mp3'),
+        passosFortes: new Audio('Passos fortes.mp3')
+    },
+    context: null,
+    isInitialized: false,
+
+    init() {
+        if (this.isInitialized) return;
+
+        try {
+            this.context = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Pré-carregar e configurar volumes
+            Object.values(this.sounds).forEach(sound => {
+                sound.load();
+                sound.volume = 0.9; // Aumentado de 0.5 para maior impacto
+            });
+
+            this.isInitialized = true;
+            console.log('🔈 Sistema de áudio avançado inicializado');
+        } catch (e) {
+            console.error('Falha ao inicializar AudioContext:', e);
+        }
+    },
+
+    play(soundName, loop = false) {
+        if (!this.isInitialized) this.init();
+        const sound = this.sounds[soundName];
+        if (sound) {
+            sound.loop = loop;
+            sound.currentTime = 0;
+            sound.play().catch(e => console.warn('Áudio bloqueado:', e));
+        }
+    },
+
+    stop(soundName) {
+        const sound = this.sounds[soundName];
+        if (sound) {
+            sound.pause();
+            sound.currentTime = 0;
+        }
+    },
+
+    // SÍNTESE PROCEDURAL (Sons sem arquivos)
+    synthClick() {
+        if (!this.context) this.init();
+        if (this.context.state === 'suspended') this.context.resume();
+
+        const osc = this.context.createOscillator();
+        const gain = this.context.createGain();
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, this.context.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, this.context.currentTime + 0.1);
+
+        gain.gain.setValueAtTime(0.1, this.context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.1);
+
+        osc.connect(gain);
+        gain.connect(this.context.destination);
+
+        osc.start();
+        osc.stop(this.context.currentTime + 0.1);
+    },
+
+    synthBuzz(duration = 0.5) {
+        if (!this.context) this.init();
+        if (this.context.state === 'suspended') this.context.resume();
+
+        const osc = this.context.createOscillator();
+        const gain = this.context.createGain();
+        const filter = this.context.createBiquadFilter();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(60, this.context.currentTime); // Zumbido de 60Hz (rede elétrica)
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(400, this.context.currentTime);
+
+        gain.gain.setValueAtTime(0, this.context.currentTime);
+        gain.gain.linearRampToValueAtTime(0.15, this.context.currentTime + 0.05); // Aumentado de 0.05 para 0.15
+        gain.gain.linearRampToValueAtTime(0, this.context.currentTime + duration);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.context.destination);
+
+        osc.start();
+        osc.stop(this.context.currentTime + duration);
+    },
+
+    synthThump() {
+        if (!this.context) this.init();
+        if (this.context.state === 'suspended') this.context.resume();
+
+        const osc = this.context.createOscillator();
+        const gain = this.context.createGain();
+        const filter = this.context.createBiquadFilter();
+
+        // Impacto Sub-grave
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(60, this.context.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, this.context.currentTime + 0.3);
+
+        // Filtro para som abafado
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(150, this.context.currentTime);
+
+        // Envelope de volume (Impacto súbito e decaimento)
+        gain.gain.setValueAtTime(0.4, this.context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.4);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.context.destination);
+
+        osc.start();
+        osc.stop(this.context.currentTime + 0.4);
+
+        // Adicionar um pouco de ruído para o "pisão"
+        const noiseBuf = this.context.createBuffer(1, this.context.sampleRate * 0.1, this.context.sampleRate);
+        const output = noiseBuf.getChannelData(0);
+        for (let i = 0; i < output.length; i++) output[i] = Math.random() * 2 - 1;
+
+        const noiseSrc = this.context.createBufferSource();
+        noiseSrc.buffer = noiseBuf;
+        const noiseFilter = this.context.createBiquadFilter();
+        const noiseGain = this.context.createGain();
+
+        noiseFilter.type = 'lowpass';
+        noiseFilter.frequency.setValueAtTime(100, this.context.currentTime);
+        noiseGain.gain.setValueAtTime(0.2, this.context.currentTime);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.1);
+
+        noiseSrc.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(this.context.destination);
+        noiseSrc.start();
+    }
+};
 
 // Flashlight Flicker Timer (10 minutes)
 setInterval(() => {
@@ -411,19 +574,20 @@ function renderMonitorRoom() {
         const monitor = document.createElement('div');
         monitor.className = 'monitor';
         monitor.id = 'monitor-' + sectorId;
-        if (isBlackoutActive) monitor.classList.add('no-signal');
+        if (isBlackoutActive || isCamerasOffline) monitor.classList.add('no-signal');
         monitor.onclick = () => navigateToLocation(sectorId);
 
         const imgSrc = data.imgBase + (data.hasDayNight ? (isLightsOn ? '_ligado' : '_desligado') : '') + data.imgExt;
 
-        const statusText = isBlackoutActive ? 'NO SIGNAL' : 'LIVE';
-        const screenStyle = isBlackoutActive ? '' : `style="background-image: url('${imgSrc}'), url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23111%22/><text x=%2250%%22 y=%2250%%22 font-family=%22monospace%22 font-size=%2210%22 fill=%22%2322c55e%22 text-anchor=%22middle%22>LOST SIGNAL</text></svg>');"`;
+        const isNoSignal = isBlackoutActive || isCamerasOffline;
+        const statusText = isNoSignal ? 'NO SIGNAL' : 'LIVE';
+        const screenStyle = isNoSignal ? '' : `style="background-image: url('${imgSrc}'), url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23111%22/><text x=%2250%%22 y=%2250%%22 font-family=%22monospace%22 font-size=%2210%22 fill=%22%2322c55e%22 text-anchor=%22middle%22>LOST SIGNAL</text></svg>');"`;
 
         monitor.innerHTML = `
             <div class="monitor-screen" ${screenStyle}></div>
             <div class="monitor-glass"></div>
             <div class="monitor-flicker"></div>
-            <div class="monitor-status ${isBlackoutActive ? 'offline' : 'live'}">${statusText}</div>
+            <div class="monitor-status ${isNoSignal ? 'offline' : 'live'}">${statusText}</div>
             <div class="monitor-label">${data.icon} ${data.name}</div>
         `;
 
@@ -535,6 +699,11 @@ function createHotspots(hotspots) {
             return;
         }
 
+        // Verificar lógica de exibição (ex: após resolver enigma)
+        if (hotspot.showIf && !window[hotspot.showIf]) {
+            return;
+        }
+
         // Verificar se é só nas luzes acesas
         if (hotspot.dayOnly && !isLightsOn) {
             return;
@@ -547,6 +716,7 @@ function createHotspots(hotspots) {
 
         const hotspotEl = document.createElement('div');
         hotspotEl.className = 'hotspot location-hotspot';
+        hotspotEl.id = hotspot.id; // Adicionado para estilização específica
         hotspotEl.title = hotspot.title;
         hotspotEl.dataset.location = hotspot.id;
 
@@ -562,7 +732,17 @@ function createHotspots(hotspots) {
         } else if (hotspot.isHidden) {
             markerClass += ' hidden';
         }
-        hotspotEl.innerHTML = `<div class="${markerClass}"></div>`;
+
+        // Se for o bilhete do dormitório, adiciona elementos extras para o visual de papel
+        if (hotspot.id === 'dormitory_note') {
+            hotspotEl.innerHTML = `
+                <div class="${markerClass}">
+                    <div class="hotspot-marker-paper-fold"></div>
+                    <div class="hotspot-marker-lines"></div>
+                </div>`;
+        } else {
+            hotspotEl.innerHTML = `<div class="${markerClass}"></div>`;
+        }
 
         // Add events
         hotspotEl.addEventListener('click', (e) => {
@@ -863,18 +1043,40 @@ function renderMonster(monster) {
 
     // Transformar o monstro em arrastável e interativo
     let isDragging = false;
+    let dragDistanceAccumulator = 0;
+    let lastDragX = monster.x;
+    let lastDragY = monster.y;
 
     el.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return;
         e.stopPropagation(); // Impede o drag da tela principal
         isDragging = true;
+        lastDragX = monster.x;
+        lastDragY = monster.y;
+        dragDistanceAccumulator = 0;
     });
 
     document.addEventListener('mousemove', (e) => {
         if (isDragging) {
             const rect = mapImage.getBoundingClientRect();
-            monster.x = ((e.clientX - rect.left) / rect.width) * 100;
-            monster.y = ((e.clientY - rect.top) / rect.height) * 100;
+            const newX = ((e.clientX - rect.left) / rect.width) * 100;
+            const newY = ((e.clientY - rect.top) / rect.height) * 100;
+
+            // Calcular distância percorrida para emitir sons de passos
+            const dist = Math.sqrt(Math.pow(newX - lastDragX, 2) + Math.pow(newY - lastDragY, 2));
+            dragDistanceAccumulator += dist;
+
+            // Limiar de passo (ex: a cada 8 unidades de coordenada do mapa)
+            if (dragDistanceAccumulator >= 8) {
+                AudioManager.play('passosFortes');
+                dragDistanceAccumulator = 0;
+            }
+
+            lastDragX = newX;
+            lastDragY = newY;
+            monster.x = newX;
+            monster.y = newY;
+
             el.style.left = monster.x + '%';
             el.style.top = monster.y + '%';
             if (!flashlightActive) drawFlashlight(); // Atualiza sombra ao vivo
@@ -1143,7 +1345,7 @@ function setupMultiSelection() {
         if (clickedToken) {
             const tokenId = parseInt(clickedToken.id.replace('token-', ''));
             const tokenData = tokens.find(t => t.id === tokenId);
-            
+
             // Se já está selecionado ou se clicou em um token (selecionar se não estiver)
             if (clickedToken.dataset.selected !== 'true') {
                 if (!e.ctrlKey && !e.metaKey) deselectAll();
@@ -1153,7 +1355,7 @@ function setupMultiSelection() {
             isDraggingGroup = true;
             isSelecting = false;
             dragGroupStart = { x: e.clientX, y: e.clientY };
-            
+
             // Resetar deltas para acumulação limpa
             dragLatestDelta.x = 0;
             dragLatestDelta.y = 0;
@@ -1188,7 +1390,7 @@ function setupMultiSelection() {
             isDraggingGroup = true;
             isSelecting = false;
             dragGroupStart = { x: e.clientX, y: e.clientY };
-            
+
             // Resetar deltas
             dragLatestDelta.x = 0;
             dragLatestDelta.y = 0;
@@ -1273,11 +1475,11 @@ function setupMultiSelection() {
     document.addEventListener('mouseup', (e) => {
         if (isDraggingGroup) {
             isDraggingGroup = false;
-            
+
             // Remover classe de dragging para reativar transições
             dragGroupElements.characters.forEach(item => item.el.classList.remove('dragging'));
             dragGroupElements.tokens.forEach(item => item.el.classList.remove('dragging'));
-            
+
             dragGroupElements = { characters: [], tokens: [] }; // Limpar cache
             mapContainer.style.cursor = '';
             saveCurrentLocationCharacters();
@@ -1423,7 +1625,7 @@ function moveSelectedElements(deltaX, deltaY) {
 
         char.x = char.x + deltaX; // Removido clamp temporário para evitar travamentos nas bordas durante o delta
         char.y = char.y + deltaY;
-        
+
         // Clamp final suave
         char.x = Math.max(0, Math.min(100, char.x));
         char.y = Math.max(0, Math.min(100, char.y));
@@ -1439,7 +1641,7 @@ function moveSelectedElements(deltaX, deltaY) {
 
         token.x = token.x + deltaX;
         token.y = token.y + deltaY;
-        
+
         // Clamp final suave
         token.x = Math.max(0, Math.min(100, token.x));
         token.y = Math.max(0, Math.min(100, token.y));
@@ -1607,6 +1809,7 @@ function deleteSelectedToken() {
 // ========================================================================
 
 function toggleBlackout() {
+    AudioManager.play('blackout');
     isBlackoutActive = !isBlackoutActive;
     localStorage.setItem('rpgBlackoutMode', isBlackoutActive ? 'on' : 'off');
 
@@ -1617,7 +1820,7 @@ function toggleBlackout() {
     } else {
         mapContainer.classList.remove('night-mode');
     }
-    
+
     updateParaiseTextContent();
 }
 
@@ -1626,13 +1829,20 @@ function toggleBlackout() {
 // ========================================================================
 
 function toggleLights() {
+    AudioManager.play('interruptor');
+
+    // Pequeno atraso para o zumbido (buzz) começar após o impacto do interruptor
+    if (!isLightsOn) {
+        setTimeout(() => AudioManager.synthBuzz(1.5), 150);
+    }
+
     isLightsOn = !isLightsOn;
     localStorage.setItem('rpgLightsMode', isLightsOn ? 'ligado' : 'desligado');
 
     // Recarregar imagem do mapa com o novo sufixo
     const locationId = getCurrentLocation();
     loadLocation(locationId);
-    
+
     updateParaiseTextContent();
 }
 
@@ -1783,6 +1993,7 @@ function toggleFlashlight() {
         return;
     }
 
+    AudioManager.play('lanterna');
     selectedCharacters.forEach(charId => {
         const char = characters.find(c => c.id === charId);
         if (char) {
@@ -1966,6 +2177,7 @@ function setupEventListeners() {
 
     // Click to place character or token
     mapContainer.addEventListener('click', (e) => {
+        AudioManager.init(); // Garante que o áudio seja desbloqueado no primeiro clique
         if (e.target.classList.contains('map-image') || e.target === mapContainer) {
             const rect = mapImage.getBoundingClientRect();
             lastMouseX = ((e.clientX - rect.left) / rect.width) * 100;
@@ -2049,6 +2261,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape') {
             closeContextMenu();
         }
+
+        // Tecla 9 - Alternar Sinal das Câmeras (Sala de Monitores)
+        if (e.key === '9' && !e.target.matches('input, textarea')) {
+            e.preventDefault();
+            e.stopPropagation();
+            isCamerasOffline = !isCamerasOffline;
+            localStorage.setItem('rpgCamerasOffline', isCamerasOffline);
+            const currentLocationId = navigationPath[navigationPath.length - 1];
+            if (currentLocationId === 'general') {
+                loadLocation('general');
+            }
+        }
     });
 
     // Close context menu on click outside
@@ -2124,8 +2348,8 @@ function globalRadarLoop() {
     if (currentLoc === 'general') {
         const sectors = ['setor_1', 'setor_2', 'setor_3', 'setor_4', 'setor_5', 'setor_6'];
 
-        // Se blackout ativo, câmeras estão sem sinal — limpar todos os pontos
-        if (isBlackoutActive) {
+        // Se blackout ativo ou câmeras offline, limpar todos os pontos
+        if (isBlackoutActive || isCamerasOffline) {
             sectors.forEach(sid => {
                 const mon = document.getElementById('monitor-' + sid);
                 if (mon) mon.querySelectorAll('.cctv-blip').forEach(t => t.remove());
@@ -2257,6 +2481,9 @@ function switchTerminalScreen(screenKey) {
         view.classList.remove('active');
     });
 
+    // Parar sons de minigame ao trocar de tela ou cancelar
+    AudioManager.stop('gerador');
+
     const targetId = `terminalScreen${screenKey.charAt(0) + screenKey.slice(1).toLowerCase()}`;
     const targetView = document.getElementById(targetId);
 
@@ -2290,7 +2517,7 @@ function switchTerminalScreen(screenKey) {
             input.focus();
             document.getElementById('loginStatus').textContent = `AUTENTICAÇÃO: ${currentTerminalContext}`;
             document.getElementById('loginStatus').className = 'terminal-status';
-            
+
             // Exibir dica de senha abaixo do campo de login
             const hints = {
                 'GENERAL': 'o primeiro a m######',
@@ -2320,7 +2547,7 @@ function switchTerminalScreen(screenKey) {
             const isAuth = currentTerminalContext === 'GENERAL' ? isTerminalAuthorizedKain
                 : currentTerminalContext === 'LAB' ? isTerminalAuthorizedJudas
                     : isTerminalAuthorizedAdam;
-            
+
             if (currentTerminalContext === 'GENERAL') {
                 document.getElementById('terminalBtnFiles').style.display = 'none';
             } else {
@@ -2422,6 +2649,8 @@ function startLightsChallenge() {
     // Gerar sequência de 5 números aleatórios
     terminalSequence = Array.from({ length: 5 }, () => Math.floor(Math.random() * 10));
 
+    AudioManager.play('gerador', true);
+
     const sequenceDisplay = document.getElementById('terminalSequence');
     const status = document.getElementById('terminalStatus');
     const output = document.getElementById('terminalOutput');
@@ -2504,6 +2733,9 @@ function handleTerminalSuccess() {
     status.textContent = 'RESTAURANDO ENERGIA...';
     status.className = 'terminal-status success';
 
+    AudioManager.stop('gerador');
+    AudioManager.synthBuzz(2);
+
     setTimeout(() => {
         if (!isLightsOn) {
             toggleLights();
@@ -2559,6 +2791,8 @@ function startTimingChallenge() {
 
     if (timingInterval) clearInterval(timingInterval);
 
+    AudioManager.play('gerador', true);
+
     timingInterval = setInterval(() => {
         needlePos += (speed * timingDirection);
         if (needlePos >= 292) { needlePos = 292; timingDirection = -1; }
@@ -2588,6 +2822,8 @@ function checkTiming() {
         hitZone.style.boxShadow = "none";
         hitZone.style.background = "#fff";
 
+        AudioManager.synthClick();
+
         currentLevelHits++;
         timingScore++;
 
@@ -2600,6 +2836,9 @@ function checkTiming() {
                 timingInterval = null;
                 status.textContent = 'MANUTENÇÃO CONCLUÍDA. ENERGIA RESTAURADA.';
                 status.className = 'terminal-status success';
+
+                AudioManager.stop('gerador');
+                AudioManager.synthBuzz(2.5);
 
                 isLightsOn = true;
                 isSector3EnergyRestored = true;
@@ -2709,8 +2948,8 @@ Essa é a última mensagem que eu vou mandar pra vocês.
 
 A Doutora Eva -- ela fugiu com o Adão.
 Não sabíamos para onde foram.
-Eu sei que ela tem uma filha...
-mas eu acho que ela não está perto.
+Eu sei que ela tem um filho...
+mas eu acho que ele não está perto.
 
 Bom...
 É minha última mensagem.
@@ -2745,7 +2984,7 @@ Como se a gente não fosse os cientistas desse lugar, né?
 Bom... enfim.
 
 Vou terminar de fazer os experimentos aqui.
-Isto é tudo... logo logo eu vou poder ver minha filha.
+Isto é tudo... logo logo eu vou poder ver meu filho.
 
 Eu acho...
 
@@ -2870,6 +3109,7 @@ function handleTerminalError(btn) {
 
 function closeTerminalMinigame() {
     terminalActive = false;
+    AudioManager.stop('gerador');
     document.getElementById('terminalMinigame').style.display = 'none';
 }
 
@@ -2915,6 +3155,7 @@ function openBoardMinigame() {
 
 function closeBoardMinigame() {
     terminalActive = false;
+    AudioManager.stop('gerador');
     document.getElementById('boardMinigame').style.display = 'none';
 }
 
@@ -2999,10 +3240,10 @@ function makeNameTileDraggable(tile) {
         isDragging = true;
         startX = e.clientX;
         startY = e.clientY;
-        
+
         const rect = tile.getBoundingClientRect();
         const boardRect = document.getElementById('boardSurface').getBoundingClientRect();
-        
+
         if (tile.parentElement.id === 'boardTilesPool') {
             initialX = rect.left + rect.width / 2 - boardRect.left;
             initialY = rect.top + rect.height / 2 - boardRect.top;
@@ -3012,7 +3253,7 @@ function makeNameTileDraggable(tile) {
             initialX = tile.offsetLeft;
             initialY = tile.offsetTop;
         }
-        
+
         tile.style.left = initialX + 'px';
         tile.style.top = initialY + 'px';
         tile.style.zIndex = 1000;
@@ -3032,7 +3273,7 @@ function makeNameTileDraggable(tile) {
         if (!isDragging) return;
         isDragging = false;
         tile.style.zIndex = 100;
-        
+
         // Snap to points
         const points = [
             { id: 'center', x: 300, y: 250 },
@@ -3043,10 +3284,10 @@ function makeNameTileDraggable(tile) {
             { id: 'bl', x: 170, y: 325 },
             { id: 'tl', x: 170, y: 175 }
         ];
-        
+
         const currentX = tile.offsetLeft;
         const currentY = tile.offsetTop;
-        
+
         let foundSnap = false;
         for (const p of points) {
             const dist = Math.sqrt(Math.pow(currentX - p.x, 2) + Math.pow(currentY - p.y, 2));
@@ -3058,11 +3299,11 @@ function makeNameTileDraggable(tile) {
                 break;
             }
         }
-        
+
         if (!foundSnap) {
             delete tile.dataset.slotId;
         }
-        
+
         checkBoardVictory();
     });
 }
@@ -3070,15 +3311,15 @@ function makeNameTileDraggable(tile) {
 function checkBoardVictory() {
     if (isBoardSolved) return;
     const tiles = document.querySelectorAll('#boardSurface .name-tile');
-    
+
     // Joshua deve estar no centro
     const joshuaTile = Array.from(tiles).find(t => t.textContent === 'JOSHUA');
     if (!joshuaTile || joshuaTile.dataset.slotId !== 'center') return;
-    
+
     // Os outros 6 nomes devem estar em QUALQUER um dos 6 slots de pontas
     const otherNames = ['GAEL', 'CALEB', 'LEVI', 'JUAN', 'ANNE', 'EVA'];
     const pointSlots = ['top', 'tr', 'br', 'bottom', 'bl', 'tl'];
-    
+
     let occupiedPoints = 0;
     tiles.forEach(t => {
         if (otherNames.includes(t.textContent) && pointSlots.includes(t.dataset.slotId)) {
@@ -3091,7 +3332,7 @@ function checkBoardVictory() {
         localStorage.setItem('rpgBoardSolved', 'true');
         isTerminalAuthorizedJudas = true;
         localStorage.setItem('terminalAuthorizedMalak_judas', 'true');
-        
+
         const surface = document.getElementById('boardSurface');
         surface.classList.add('solved');
 
@@ -3106,5 +3347,24 @@ function checkBoardVictory() {
         status.textContent = 'ELE NOS SALVARÁ - ESCOTILHA LIBERADA';
         status.classList.add('board-victory-msg');
         document.querySelectorAll('#boardSurface .name-tile').forEach(t => t.classList.add('correct'));
+
+        // Recarregar hotspots do local atual para mostrar a escotilha imediatamente se estiver no Setor 5
+        const currentLoc = getCurrentLocation();
+        if (currentLoc === 'setor_5') {
+            loadLocation(currentLoc);
+        }
     }
+}
+
+function openDormitoryNote() {
+    const overlay = document.getElementById('dormitoryNoteOverlay');
+    overlay.classList.add('active');
+    terminalActive = true;
+}
+
+function closeDormitoryNote() {
+    const overlay = document.getElementById('dormitoryNoteOverlay');
+    overlay.classList.remove('active');
+    AudioManager.stop('gerador');
+    terminalActive = false;
 }
